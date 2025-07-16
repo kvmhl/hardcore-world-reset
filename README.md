@@ -2,16 +2,6 @@
 
 A Spigot plugin for Minecraft that resets the world on every player death in hardcore mode and starts a new, unique timer. Ideal for "hardcore challenge" servers with friends.
 
----
-## ⚠️ Disclaimer
-
-> **This is pre-release software!**
->
-> While it has been tested, it may still contain bugs or undergo significant changes. It is **strongly recommended** to make a full backup of your server folder before installing.
->
-
----
-
 ## Features
 
 - Upon player death, the current hardcore world is deleted and replaced with a new, freshly generated one.
