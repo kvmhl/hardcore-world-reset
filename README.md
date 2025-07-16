@@ -9,19 +9,15 @@ A Spigot plugin for Minecraft that resets the world on every player death in har
 >
 > While it has been tested, it may still contain bugs or undergo significant changes. It is **strongly recommended** to make a full backup of your server folder before installing.
 >
-> Please report any issues you find on the [GitHub Issues](https://github.com/<your-github-name>/hardcore-world-reset/issues) page.
 
 ---
 
 ## Features
 
-- **Automatic World Reset:** Upon player death, the current hardcore world is deleted and replaced with a new, freshly generated one.
-- **Seamless Transition:** All players are instantly teleported to the new world.
-- **Configurable Reset Method:** Choose between a seamless teleport (`SEAMLESS`) or disconnecting all players (`DISCONNECT`) until the new world is ready.
-- **Integrated Timer:** A precise timer (`HH:MM:SS.ms`) is displayed in the player list.
-- **Defined Goal:** The timer reliably stops as soon as the Ender Dragon is defeated.
-- **Advancement Reset:** All advancements are reset for all players with every world reset.
-- **Full Dimension Support:** Nether and End dimensions are correctly created and linked for each hardcore world set, thanks to the Multiverse integration.
+- Upon player death, the current hardcore world is deleted and replaced with a new, freshly generated one.
+- All players are instantly teleported to the new world.
+- Choose between a seamless teleport (`SEAMLESS`) or disconnecting all players (`DISCONNECT`) until the new world is ready.
+- A timer (`HH:MM:SS.ms`) is displayed in the player list.
 
 ---
 
