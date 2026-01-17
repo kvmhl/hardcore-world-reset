@@ -5,7 +5,7 @@ A lightweight, powerful plugin that resets the world whenever a player dies in H
 ## Features
 
 - **Instant World Resets**: Automatically generates a fresh new world (Overworld, Nether, The End) upon death.
-- **Smart World Management**: Handles complete world lifecycles without any external dependencies like Multiverse.
+- **Smart World Management**: Handles complete world lifecycles.
 - **Speedrun Timer**: Integrated live timer in the player list (Tab) to track run duration.
 - **End Goal Detection**: Detects Ender Dragon kills to complete the run and announce final time.
 - **Seamless & Kick Modes**: Choose between "Seamless" teleportation (pre-generating worlds) or "Disconnect" (kick on death) logic.
