@@ -4,6 +4,7 @@ target/
 dependency-reduced-pom.xml
 build_log.txt
 build_success.log
+*.txt
 
 # IntelliJ IDEA
 .idea/
