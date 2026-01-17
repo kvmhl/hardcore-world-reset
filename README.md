@@ -1,63 +1,53 @@
 # HardcoreWorldReset
 
-A Spigot plugin for Minecraft that resets the world on every player death in hardcore mode and starts a new, unique timer. Ideal for "hardcore challenge" servers with friends.
+A lightweight, powerful plugin that resets the world whenever a player dies in Hardcore mode. Ideal for speedrunning, challenges, and "You Die, World Resets" servers.
 
 ## Features
 
-- Upon player death, the current hardcore world is deleted and replaced with a new, freshly generated one.
-- All players are instantly teleported to the new world.
-- Choose between a seamless teleport (`SEAMLESS`) or disconnecting all players (`DISCONNECT`) until the new world is ready.
-- A timer (`HH:MM:SS.ms`) is displayed in the player list.
+- **Instant World Resets**: Automatically generates a fresh new world (Overworld, Nether, The End) upon death.
+- **Smart World Management**: Handles complete world lifecycles without any external dependencies like Multiverse.
+- **Speedrun Timer**: Integrated live timer in the player list (Tab) to track run duration.
+- **End Goal Detection**: Detects Ender Dragon kills to complete the run and announce final time.
+- **Seamless & Kick Modes**: Choose between "Seamless" teleportation (pre-generating worlds) or "Disconnect" (kick on death) logic.
+- **Advance Revocation**: Automatically clears player advancements on reset for a fresh start.
 
----
+## Installation
 
-## Installation & Setup
+1.  Download the latest `HardcoreWorldReset-x.x.x.jar` from Releases.
+2.  Drop it into your server's `plugins/` folder.
+3.  Ensure `hardcore=true` is set in your `server.properties`.
+4.  Restart the server.
 
-1.  **Download Dependencies:** You need the following plugins on your server:
-    * [Multiverse-Core](https://dev.bukkit.org/projects/multiverse-core) (v4.3.x)
-    * [Multiverse-NetherPortals](https://dev.bukkit.org/projects/multiverse-netherportals) (v4.2.x)
-2.  **Download HardcoreWorldReset:** Download the latest `.jar` file from the **[Releases Page](https://github.com/kdltmhl/hardcore-world-reset/releases)**.
-3.  **Place Files:** Put all three `.jar` files into the `plugins` folder of your Spigot server.
-4.  Important: Ensure that `hardcore=true` is set in your `server.properties` file.
-5.  Start your server.
-
----
+> **Note**: This plugin requires **Java 21**.
 
 ## Configuration
 
-The configuration can be found in `plugins/HardcoreWorldReset/config.yml`.
+The plugin is ready to go out of the box, but highly configurable via `config.yml`:
 
 ```yaml
-# enables or disables the entire plugin.
+# Toggle plugin functionality
 plugin-enabled: true
 
-# the prefix for all generated hardcore worlds.
-# WARNING: Changing this value will create a completely new series of worlds!
+# Naming convention for generated world folders
 world-prefix: "hardcore_"
 
-# the method for swapping to the new world after a death.
-# SEAMLESS: Instantly teleports all players to the new world.
-# WARNING: Causes a significant lag spike at every reset from creating the new standby world
-# DISCONNECT: Kicks all players from the server and allows them to reconnect once the new world is ready.
-swap-method: "SEAMLESS"
+# How to handle world changes: "SEAMLESS" (teleport) or "DISCONNECT" (kick)
+swap-method: "DISCONNECT"
 
-# end goal of the run (currently only supports the ender dragon)
-end-goal: "ENDER_DRAGON"
+# Gameplay settings
+announce-deaths: true
+auto-start-timer: true
+min-players-to-start: 1
+```
 
-# splash texts after certain events
-messages:
-  kick-reason: "&6A player has died! The world is resetting."
-  title-main: "&cA player died!"
-  title-subtitle: "Welcome to the new world."
+## Building from Source
 
-# the %time% placeholder will be replaced with the final time.
-  dragon-defeat: "&aThe Ender Dragon has been defeated! &fFinal Time: &e%time%"
+To build this project locally, ensure you have JDK 21 installed.
 
-  redirect: "&aMoving you to the active hardcore world."
+```bash
+git clone https://github.com/kvmhl/hardcore-world-reset.git
+cd hardcore-world-reset
+.\build.bat
+```
 
-# --- DO NOT EDIT BELOW THIS LINE ---
-# This section saves the state of the plugin.
-state:
-  active-world: "hardcore_1"
-  standby-world: "hardcore_2"
-  world-counter: 2
+The artifact will be located in `target/HardcoreWorldReset-2.0.0.jar`.

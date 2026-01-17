@@ -1,0 +1,128 @@
+# ============================================== #
+#     HardcoreWorldReset Plugin Configuration    #
+# ============================================== #
+# Version: 2.0.0
+# This is a standalone plugin - no dependencies required!
+
+# ==================== Core Settings ====================
+
+# Enable or disable the entire plugin
+plugin-enabled: true
+
+# The prefix for all generated hardcore worlds
+# WARNING: Changing this value will create a completely new series of worlds!
+world-prefix: "hardcore_"
+
+# Method for handling world swap after a player death
+# Options:
+#   SEAMLESS - Instantly teleports all players to the new world
+#              + No disconnect for players
+#              - Causes a lag spike from creating the new standby world
+#   DISCONNECT - Kicks all players and lets them reconnect when ready
+#              + No lag spike, timer starts at 00:00:00.00
+#              - Players must reconnect
+swap-method: "DISCONNECT"
+
+# The end goal that will stop the timer and announce completion
+# Options: ENDER_DRAGON, WITHER, ELDER_GUARDIAN, NONE
+end-goal: "ENDER_DRAGON"
+
+# ==================== Gameplay Settings ====================
+
+gameplay:
+  # Automatically start the timer when enough players join
+  auto-start-timer: true
+
+  # Minimum number of players required to start/continue the timer
+  min-players-to-start: 1
+
+  # Preserve player inventory when swapping worlds (for testing purposes)
+  # WARNING: Defeats the purpose of hardcore mode, use only for debugging
+  preserve-inventory-on-swap: false
+
+  # Announce player deaths in chat
+  announce-deaths: true
+
+  # Show the speedrun timer in the player list tab
+  show-timer-in-tab: true
+
+  # Delay (in ticks) before teleporting players during world swap
+  # 20 ticks = 1 second
+  teleport-delay-ticks: 20
+
+# ==================== Performance Settings ====================
+
+performance:
+  # Pre-generate chunks around spawn for the standby world
+  # 0 = disabled, 1-32 = chunk radius to pre-generate
+  # Higher values reduce lag during world swap but increase startup time
+  world-pregen-distance: 0
+
+# ==================== Messages ====================
+# All messages support color codes using & (e.g., &a for green, &c for red)
+# Available placeholders:
+#   %player% - Player name (where applicable)
+#   %time% - Formatted time (where applicable)
+
+messages:
+  # Shown when kicking players during DISCONNECT swap method
+  kick-reason: "&6A player has died! The world is resetting."
+
+  # Title shown to players after world swap (SEAMLESS method)
+  title-main: "&cA player has died!"
+  title-subtitle: "&7Starting fresh..."
+
+  # Announced when the end goal (e.g., dragon) is defeated
+  # %time% will be replaced with the final speedrun time
+  dragon-defeat: "&a&lVICTORY! &fThe Ender Dragon has been defeated!\n&7Final Time: &e&l%time%"
+
+  # Shown when redirecting a player to the active world
+  redirect: "&aMoving you to the active hardcore world."
+
+  # Shown when a player tries to join during world reset
+  world-resetting: "&cThe world is currently resetting. Please try again in a moment."
+
+  # Shown when the timer starts
+  timer-started: "&aThe timer has started! Good luck!"
+
+  # Shown when the timer is paused (no players online)
+  timer-paused: "&eTimer paused - waiting for players."
+
+  # Death announcement format
+  # %player% will be replaced with the player's name
+  player-died: "&c&l%player% &7has died! Resetting the world..."
+
+# ==================== Timer Display ====================
+
+timer:
+  # Color of the timer in the tab list (when running)
+  running-color: "&6"
+
+  # Color of the timer when paused
+  paused-color: "&e"
+
+  # Color of the final time display
+  final-color: "&a"
+
+  # Timer format (do not change unless you know what you're doing)
+  format: "%02d:%02d:%02d.%02d"
+
+# ==================== Advanced Settings ====================
+
+advanced:
+  # Enable debug logging
+  debug: false
+
+  # Force unload the default "world" on startup
+  # Set to false if you need the default world for something
+  unload-default-world: true
+
+# ============================================== #
+#              DO NOT EDIT BELOW                 #
+#    This section saves the plugin state        #
+# ============================================== #
+
+state:
+  active-world: "hardcore_1"
+  standby-world: "hardcore_2"
+  world-counter: 2

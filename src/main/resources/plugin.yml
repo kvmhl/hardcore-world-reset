@@ -1,0 +1,29 @@
+name: HardcoreWorldReset
+version: ${project.version}
+main: com.github.kdltmhl.hardcoreworldreset.HardcoreWorldReset
+api-version: '1.21'
+author: kdltmhl
+description: Standalone plugin that resets the world on player death in hardcore mode. Includes timer, portal handling, and automatic world management.
+website: https://github.com/kvmhl/hardcore-world-reset
+
+# No dependencies required - this is a fully standalone plugin!
+# depend: []
+
+# Soft dependencies for optional integration
+# softdepend: []
+
+# Commands (none currently implemented, but space for future expansion)
+# commands:
+#   hwr:
+#     description: HardcoreWorldReset admin commands
+#     usage: /hwr <reload|status|reset>
+#     permission: hardcoreworldreset.admin
+
+# Permissions
+permissions:
+  hardcoreworldreset.admin:
+    description: Allows access to admin commands
+    default: op
+  hardcoreworldreset.bypass:
+    description: Bypass death-triggered world reset (for admins/spectators)
+    default: false
