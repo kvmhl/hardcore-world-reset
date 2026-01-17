@@ -1,5 +1,7 @@
 # HardcoreWorldReset
 
+[![Download Latest Release](https://img.shields.io/badge/DOWNLOAD-v2.0.0-succcess?style=for-the-badge&logo=github&color=2ea44f)](https://github.com/kvmhl/hardcore-world-reset/releases/latest)
+
 A lightweight, powerful plugin that resets the world whenever a player dies in Hardcore mode. Ideal for speedrunning, challenges, and "You Die, World Resets" servers.
 
 ## Features
