@@ -9,21 +9,20 @@ A lightweight, powerful plugin that **automatically resets the world** whenever 
 
 ---
 
-## ✨ Features
+## Features
 
-*   **Instant World Resets** 🔄
+*   **Instant World Resets** 
     *   Automatically generates a fresh new world set (Overworld, Nether, The End) upon death.
     *   No external dependencies (no Multiverse required).
-*   **Speedrun Timer** ⏱️
+*   **Speedrun Timer** 
     *   Live timer displayed in the player list (Tab).
     *   Pauses when no players are online.
-*   **End Goal Detection** 🐉
+*   **End Goal Detection** 
     *   Detects Ender Dragon kills to complete the run.
     *   Announces the final time to the server.
-*   **Smart Interactions** 🧠
+*   **Automation** 
     *   **Swap Methods:** Choose between "Seamless" (teleport) or "Disconnect" (kick) logic.
     *   **Advancement Reset:** Automatically clears advancements for a fresh start.
-    *   **Nether Portals:** Custom handler ensures correct 8:1 scaling in custom worlds.
 
 ---
 
@@ -73,7 +72,7 @@ Currently, the plugin operates automatically without commands. Admin commands (l
 
 ---
 
-## 🏗️ Building from Source
+## Building from Source
 
 ```bash
 git clone https://github.com/kvmhl/hardcore-world-reset.git
