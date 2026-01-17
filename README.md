@@ -1,55 +1,83 @@
 # HardcoreWorldReset
 
 [![Download Latest Release](https://img.shields.io/badge/DOWNLOAD-v2.0.0-succcess?style=for-the-badge&logo=github&color=2ea44f)](https://github.com/kvmhl/hardcore-world-reset/releases/latest)
+[![Java CI](https://github.com/kvmhl/hardcore-world-reset/actions/workflows/build.yml/badge.svg)](https://github.com/kvmhl/hardcore-world-reset/actions)
 
-A lightweight, powerful plugin that resets the world whenever a player dies in Hardcore mode. Ideal for speedrunning, challenges, and "You Die, World Resets" servers.
+A lightweight, powerful plugin that **automatically resets the world** whenever a player dies in Hardcore mode. Ideal for speedrunning, collaborative challenges, and "You Die, World Resets" servers.
 
-## Features
+> **Requires:** Java 21+ and a server running in `hardcore=true` mode.
 
-- **Instant World Resets**: Automatically generates a fresh new world (Overworld, Nether, The End) upon death.
-- **Smart World Management**: Handles complete world lifecycles.
-- **Speedrun Timer**: Integrated live timer in the player list (Tab) to track run duration.
-- **End Goal Detection**: Detects Ender Dragon kills to complete the run and announce final time.
-- **Seamless & Kick Modes**: Choose between "Seamless" teleportation (pre-generating worlds) or "Disconnect" (kick on death) logic.
-- **Advance Revocation**: Automatically clears player advancements on reset for a fresh start.
+---
 
-## Installation
+## ✨ Features
 
-1.  Download the latest `HardcoreWorldReset-x.x.x.jar` from Releases.
-2.  Drop it into your server's `plugins/` folder.
-3.  Ensure `hardcore=true` is set in your `server.properties`.
-4.  Restart the server.
+*   **Instant World Resets** 🔄
+    *   Automatically generates a fresh new world set (Overworld, Nether, The End) upon death.
+    *   No external dependencies (no Multiverse required).
+*   **Speedrun Timer** ⏱️
+    *   Live timer displayed in the player list (Tab).
+    *   Pauses when no players are online.
+*   **End Goal Detection** 🐉
+    *   Detects Ender Dragon kills to complete the run.
+    *   Announces the final time to the server.
+*   **Smart Interactions** 🧠
+    *   **Swap Methods:** Choose between "Seamless" (teleport) or "Disconnect" (kick) logic.
+    *   **Advancement Reset:** Automatically clears advancements for a fresh start.
+    *   **Nether Portals:** Custom handler ensures correct 8:1 scaling in custom worlds.
 
-> **Note**: This plugin requires **Java 21**.
+---
 
-## Configuration
+## 🚀 Installation
 
-The plugin is ready to go out of the box, but highly configurable via `config.yml`:
+1.  Download the latest **[HardcoreWorldReset-2.0.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
+2.  Place it in your server's `plugins/` folder.
+3.  Open `server.properties` and ensure `hardcore=true`.
+4.  Start the server.
 
-```yaml
-# Toggle plugin functionality
-plugin-enabled: true
+---
 
-# Naming convention for generated world folders
-world-prefix: "hardcore_"
+## ⚙️ Configuration
 
-# How to handle world changes: "SEAMLESS" (teleport) or "DISCONNECT" (kick)
-swap-method: "DISCONNECT"
+The plugin is highly configurable via `plugins/HardcoreWorldReset/config.yml`.
 
-# Gameplay settings
-announce-deaths: true
-auto-start-timer: true
-min-players-to-start: 1
-```
+### Core Settings
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `plugin-enabled` | `true` | Master switch for the plugin. |
+| `world-prefix` | `"hardcore_"` | Prefix for generated world folders (e.g., `hardcore_1`). |
+| `swap-method` | `"DISCONNECT"` | `SEAMLESS` (teleport) or `DISCONNECT` (kick players). |
+| `end-goal` | `"ENDER_DRAGON"` | Trigger for completing the run. |
 
-## Building from Source
+### Gameplay Settings
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `gameplay.auto-start-timer` | `true` | Starts timer automatically when players join. |
+| `gameplay.min-players-to-start` | `1` | Players needed to start the timer. |
+| `gameplay.announce-deaths` | `true` | Broadcasts death messages to chat. |
+| `gameplay.show-timer-in-tab` | `true` | Toggles the Tab list timer. |
+| `gameplay.preserve-inventory` | `false` | **Debug only**: Keeps items across resets. |
 
-To build this project locally, ensure you have JDK 21 installed.
+### Performance
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `performance.world-pregen-distance` | `0` | Radius to pre-generate chunks (reduces lag, increases load time). |
+
+---
+
+## 🛠️ Commands & Permissions
+
+Currently, the plugin operates automatically without commands. Admin commands (like force reset) are planned for future updates.
+
+*   `hardcoreworldreset.admin` - Default: `OP` (for future admin features).
+*   `hardcoreworldreset.bypass` - Default: `false` (Bypass death resets).
+
+---
+
+## 🏗️ Building from Source
 
 ```bash
 git clone https://github.com/kvmhl/hardcore-world-reset.git
 cd hardcore-world-reset
 .\build.bat
 ```
-
-The artifact will be located in `target/HardcoreWorldReset-2.0.0.jar`.
+The artifact will be created in `target/`.
