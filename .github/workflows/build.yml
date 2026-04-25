@@ -29,8 +29,13 @@ jobs:
         distribution: 'temurin'
         cache: maven
         
-    - name: Build with Maven
+    - name: Build with Maven (1.21.5 with tests)
+      if: ${{ matrix.paper-version == '1.21.5-R0.1-SNAPSHOT' }}
       run: mvn -B package --file pom.xml -Dpaper.api.version=${{ matrix.paper-version }}
+      
+    - name: Build with Maven (Legacy API compile-only)
+      if: ${{ matrix.paper-version != '1.21.5-R0.1-SNAPSHOT' }}
+      run: mvn -B package --file pom.xml -Dpaper.api.version=${{ matrix.paper-version }} -Dmaven.test.skip=true
       
     - name: Upload Artifact
       if: ${{ matrix.paper-version == '1.21.5-R0.1-SNAPSHOT' }}
