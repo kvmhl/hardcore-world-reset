@@ -16,6 +16,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <paper.api.version>1.21.5-R0.1-SNAPSHOT</paper.api.version>
     </properties>
 
     <repositories>
@@ -38,7 +39,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.5-R0.1-SNAPSHOT</version>
+            <version>${paper.api.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -64,6 +65,7 @@
     </dependencies>
 
     <build>
+        <finalName>${project.artifactId}-${project.version}-MC1.21.x</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

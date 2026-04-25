@@ -13,6 +13,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        paper-version: ['1.21-R0.1-SNAPSHOT', '1.21.5-R0.1-SNAPSHOT']
     permissions:
       contents: write # Required to create releases
 
@@ -27,10 +30,10 @@ jobs:
         cache: maven
         
     - name: Build with Maven
-      # Tests skipped due to dependency incompatibility (MockBukkit vs Paper)
-      run: mvn -B package -Dmaven.test.skip=true --file pom.xml
-
+      run: mvn -B package --file pom.xml -Dpaper.api.version=${{ matrix.paper-version }}
+      
     - name: Upload Artifact
+      if: ${{ matrix.paper-version == '1.21.5-R0.1-SNAPSHOT' }}
       uses: actions/upload-artifact@v4
       with:
         name: HardcoreWorldReset-Jar
@@ -38,7 +41,7 @@ jobs:
         retention-days: 5
 
     - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
+      if: startsWith(github.ref, 'refs/tags/') && matrix.paper-version == '1.21.5-R0.1-SNAPSHOT'
       uses: softprops/action-gh-release@v1
       with:
         files: target/HardcoreWorldReset-*.jar

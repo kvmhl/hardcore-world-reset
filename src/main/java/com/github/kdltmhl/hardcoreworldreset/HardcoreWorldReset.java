@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  * Adventure API — {@code ChatColor}, {@code broadcastMessage},
  * and {@code kickPlayer(String)} are fully removed.
  */
-public final class HardcoreWorldReset extends JavaPlugin {
+public class HardcoreWorldReset extends JavaPlugin {
 
     private ConfigManager configManager;
     private WorldManager worldManager;
@@ -408,7 +408,7 @@ public final class HardcoreWorldReset extends JavaPlugin {
      */
     private boolean isTestEnvironment() {
         try {
-            Class.forName("be.seeseemelk.mockbukkit.MockBukkit");
+            Class.forName("org.mockbukkit.mockbukkit.MockBukkit");
             return true;
         } catch (ClassNotFoundException e) {
             return false;
@@ -431,4 +431,8 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
     /** @param isSwapping The swapping state (for testing) */
     void setSwapping(boolean isSwapping) { this.isSwapping = isSwapping; }
+
+    public long getStartTime() {
+        return startTime;
+    }
 }
