@@ -1,6 +1,8 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.Arrays;
@@ -9,8 +11,17 @@ import java.util.List;
 /**
  * Manages plugin configuration with validation and defaults.
  * Provides a clean interface for accessing configuration values.
+ *
+ * <p>As of v3.0.0 (MC 1.21.5), all message strings are parsed through
+ * {@link MiniMessage} instead of the deprecated {@code ChatColor} API.
+ * Legacy {@code &}-code strings from config are still supported via
+ * {@link LegacyComponentSerializer} for backwards compatibility.
  */
 public class ConfigManager {
+
+    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
+    private static final LegacyComponentSerializer LEGACY_AMPERSAND =
+            LegacyComponentSerializer.legacyAmpersand();
 
     private final HardcoreWorldReset plugin;
     private FileConfiguration config;
@@ -33,9 +44,9 @@ public class ConfigManager {
      * Swap method enumeration.
      */
     public enum SwapMethod {
-        /** Instantly teleports all players to the new world */
+        /** Instantly teleports all players to the new world. */
         SEAMLESS,
-        /** Disconnects all players until the new world is ready */
+        /** Disconnects all players until the new world is ready. */
         DISCONNECT
     }
 
@@ -50,31 +61,77 @@ public class ConfigManager {
     }
 
     /**
-     * Container for configurable messages.
+     * Container for configurable messages, stored as Adventure {@link Component}s.
+     *
+     * <p>Raw strings from config.yml are parsed once at load time — either as
+     * MiniMessage ({@code <red>text</red>}) or legacy ampersand codes ({@code &c}).
      */
     public static class Messages {
-        public final String kickReason;
-        public final String titleMain;
-        public final String titleSubtitle;
-        public final String dragonDefeat;
-        public final String redirect;
-        public final String worldResetting;
-        public final String timerStarted;
-        public final String timerPaused;
-        public final String playerDied;
+        public final Component kickReason;
+        public final Component titleMain;
+        public final Component titleSubtitle;
+        public final Component dragonDefeat;
+        public final Component redirect;
+        public final Component worldResetting;
+        public final Component timerStarted;
+        public final Component timerPaused;
+        /** Raw string kept for placeholder substitution at runtime. */
+        public final String playerDiedTemplate;
+        /** Raw string for victory broadcast; {@code %time%} is substituted at runtime. */
+        public final String dragonDefeatTemplate;
 
-        public Messages(String kickReason, String titleMain, String titleSubtitle,
+        public Messages(
+                String kickReason, String titleMain, String titleSubtitle,
                 String dragonDefeat, String redirect, String worldResetting,
                 String timerStarted, String timerPaused, String playerDied) {
-            this.kickReason = ChatColor.translateAlternateColorCodes('&', kickReason);
-            this.titleMain = ChatColor.translateAlternateColorCodes('&', titleMain);
-            this.titleSubtitle = ChatColor.translateAlternateColorCodes('&', titleSubtitle);
-            this.dragonDefeat = ChatColor.translateAlternateColorCodes('&', dragonDefeat);
-            this.redirect = ChatColor.translateAlternateColorCodes('&', redirect);
-            this.worldResetting = ChatColor.translateAlternateColorCodes('&', worldResetting);
-            this.timerStarted = ChatColor.translateAlternateColorCodes('&', timerStarted);
-            this.timerPaused = ChatColor.translateAlternateColorCodes('&', timerPaused);
-            this.playerDied = ChatColor.translateAlternateColorCodes('&', playerDied);
+
+            this.kickReason      = parse(kickReason);
+            this.titleMain       = parse(titleMain);
+            this.titleSubtitle   = parse(titleSubtitle);
+            this.dragonDefeat    = parse(dragonDefeat);
+            this.redirect        = parse(redirect);
+            this.worldResetting  = parse(worldResetting);
+            this.timerStarted    = parse(timerStarted);
+            this.timerPaused     = parse(timerPaused);
+
+            // Store raw templates for runtime placeholder substitution
+            this.playerDiedTemplate  = playerDied;
+            this.dragonDefeatTemplate = dragonDefeat;
+        }
+
+        /**
+         * Parses a config string into an Adventure Component.
+         * Supports both MiniMessage ({@code <red>}) and legacy {@code &} codes.
+         */
+        private static Component parse(String raw) {
+            if (raw == null || raw.isEmpty()) {
+                return Component.empty();
+            }
+            // If it contains MiniMessage tags, use MiniMessage; otherwise fall back to legacy
+            if (raw.contains("<") && raw.contains(">")) {
+                return MINI_MESSAGE.deserialize(raw);
+            }
+            return LEGACY_AMPERSAND.deserialize(raw);
+        }
+
+        /**
+         * Builds a player-died component by substituting {@code %player%} at runtime.
+         *
+         * @param playerName The player's display name
+         * @return The formatted death announcement Component
+         */
+        public Component buildPlayerDied(String playerName) {
+            return parse(playerDiedTemplate.replace("%player%", playerName));
+        }
+
+        /**
+         * Builds a dragon-defeat component by substituting {@code %time%} at runtime.
+         *
+         * @param time The formatted speedrun time string
+         * @return The formatted victory Component
+         */
+        public Component buildDragonDefeat(String time) {
+            return parse(dragonDefeatTemplate.replace("%time%", time));
         }
     }
 
@@ -115,7 +172,7 @@ public class ConfigManager {
      */
     private void loadCoreSettings() {
         pluginEnabled = config.getBoolean("plugin-enabled", true);
-        worldPrefix = config.getString("world-prefix", "hardcore_");
+        worldPrefix   = config.getString("world-prefix", "hardcore_");
 
         String swapMethodStr = config.getString("swap-method", "SEAMLESS").toUpperCase();
         try {
@@ -138,13 +195,13 @@ public class ConfigManager {
      * Loads gameplay-related settings.
      */
     private void loadGameplaySettings() {
-        autoStartTimer = config.getBoolean("gameplay.auto-start-timer", true);
+        autoStartTimer         = config.getBoolean("gameplay.auto-start-timer", true);
         preserveInventoryOnSwap = config.getBoolean("gameplay.preserve-inventory-on-swap", false);
-        announceDeaths = config.getBoolean("gameplay.announce-deaths", true);
-        showTimerInTab = config.getBoolean("gameplay.show-timer-in-tab", true);
-        worldPregenDistance = config.getInt("performance.world-pregen-distance", 0);
-        teleportDelay = config.getInt("gameplay.teleport-delay-ticks", 20);
-        minPlayersToStart = config.getInt("gameplay.min-players-to-start", 1);
+        announceDeaths         = config.getBoolean("gameplay.announce-deaths", true);
+        showTimerInTab         = config.getBoolean("gameplay.show-timer-in-tab", true);
+        worldPregenDistance    = config.getInt("performance.world-pregen-distance", 0);
+        teleportDelay          = config.getInt("gameplay.teleport-delay-ticks", 20);
+        minPlayersToStart      = config.getInt("gameplay.min-players-to-start", 1);
     }
 
     /**
@@ -152,16 +209,24 @@ public class ConfigManager {
      */
     private void loadMessages() {
         messages = new Messages(
-                config.getString("messages.kick-reason", "&6A player has died! The world is resetting."),
-                config.getString("messages.title-main", "&cA player has died!"),
-                config.getString("messages.title-subtitle", ""),
+                config.getString("messages.kick-reason",
+                        "<gold>A player has died! The world is resetting."),
+                config.getString("messages.title-main",
+                        "<red>A player has died!"),
+                config.getString("messages.title-subtitle",
+                        "<gray>Starting fresh..."),
                 config.getString("messages.dragon-defeat",
-                        "&aThe Ender Dragon has been defeated! &fFinal Time: &e%time%"),
-                config.getString("messages.redirect", "&aMoving you to the active hardcore world."),
-                config.getString("messages.world-resetting", "&6The world is resetting, please wait..."),
-                config.getString("messages.timer-started", "&aThe timer has started!"),
-                config.getString("messages.timer-paused", "&eTimer paused - no players online."),
-                config.getString("messages.player-died", "&c%player% has died!"));
+                        "<green><bold>VICTORY!</bold> <white>The Ender Dragon has been defeated!\n<gray>Final Time: <yellow><bold>%time%"),
+                config.getString("messages.redirect",
+                        "<green>Moving you to the active hardcore world."),
+                config.getString("messages.world-resetting",
+                        "<red>The world is currently resetting. Please try again in a moment."),
+                config.getString("messages.timer-started",
+                        "<green>The timer has started! Good luck!"),
+                config.getString("messages.timer-paused",
+                        "<yellow>Timer paused - waiting for players."),
+                config.getString("messages.player-died",
+                        "<red><bold>%player%</bold> <gray>has died! Resetting the world..."));
     }
 
     /**
@@ -205,89 +270,41 @@ public class ConfigManager {
 
     // ==================== Getters ====================
 
-    /**
-     * @return true if the plugin is enabled
-     */
-    public boolean isPluginEnabled() {
-        return pluginEnabled;
-    }
+    /** @return true if the plugin is enabled */
+    public boolean isPluginEnabled() { return pluginEnabled; }
 
-    /**
-     * @return The world name prefix
-     */
-    public String getWorldPrefix() {
-        return worldPrefix;
-    }
+    /** @return The world name prefix */
+    public String getWorldPrefix() { return worldPrefix; }
 
-    /**
-     * @return The swap method
-     */
-    public SwapMethod getSwapMethod() {
-        return swapMethod;
-    }
+    /** @return The swap method */
+    public SwapMethod getSwapMethod() { return swapMethod; }
 
-    /**
-     * @return The end goal
-     */
-    public EndGoal getEndGoal() {
-        return endGoal;
-    }
+    /** @return The end goal */
+    public EndGoal getEndGoal() { return endGoal; }
 
-    /**
-     * @return true if timer should auto-start
-     */
-    public boolean isAutoStartTimer() {
-        return autoStartTimer;
-    }
+    /** @return true if timer should auto-start */
+    public boolean isAutoStartTimer() { return autoStartTimer; }
 
-    /**
-     * @return true if inventory should be preserved on world swap
-     */
-    public boolean isPreserveInventoryOnSwap() {
-        return preserveInventoryOnSwap;
-    }
+    /** @return true if inventory should be preserved on world swap */
+    public boolean isPreserveInventoryOnSwap() { return preserveInventoryOnSwap; }
 
-    /**
-     * @return true if deaths should be announced
-     */
-    public boolean isAnnounceDeaths() {
-        return announceDeaths;
-    }
+    /** @return true if deaths should be announced */
+    public boolean isAnnounceDeaths() { return announceDeaths; }
 
-    /**
-     * @return true if timer should be shown in tab
-     */
-    public boolean isShowTimerInTab() {
-        return showTimerInTab;
-    }
+    /** @return true if timer should be shown in tab */
+    public boolean isShowTimerInTab() { return showTimerInTab; }
 
-    /**
-     * @return The world pregen distance in chunks
-     */
-    public int getWorldPregenDistance() {
-        return worldPregenDistance;
-    }
+    /** @return The world pregen distance in chunks */
+    public int getWorldPregenDistance() { return worldPregenDistance; }
 
-    /**
-     * @return The teleport delay in ticks
-     */
-    public int getTeleportDelay() {
-        return teleportDelay;
-    }
+    /** @return The teleport delay in ticks */
+    public int getTeleportDelay() { return teleportDelay; }
 
-    /**
-     * @return The minimum players required to start
-     */
-    public int getMinPlayersToStart() {
-        return minPlayersToStart;
-    }
+    /** @return The minimum players required to start */
+    public int getMinPlayersToStart() { return minPlayersToStart; }
 
-    /**
-     * @return The messages container
-     */
-    public Messages getMessages() {
-        return messages;
-    }
+    /** @return The messages container */
+    public Messages getMessages() { return messages; }
 
     // ==================== State Management ====================
 

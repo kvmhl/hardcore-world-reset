@@ -1,8 +1,11 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.0.0
-# This is a standalone plugin - no dependencies required!
+# Version: 3.0.0 (Minecraft 1.21.5)
+#
+# Messages support MiniMessage format: https://docs.advntr.dev/minimessage/format.html
+# Examples:  <red>text</red>  <bold>  <gradient:red:gold>  <#FF5555>
+# Legacy &-codes are also supported for backwards-compatibility.
 
 # ==================== Core Settings ====================
 
@@ -59,38 +62,38 @@ performance:
   world-pregen-distance: 0
 
 # ==================== Messages ====================
-# All messages support color codes using & (e.g., &a for green, &c for red)
+# Messages supports MiniMessage format and legacy & codes.
 # Available placeholders:
 #   %player% - Player name (where applicable)
-#   %time% - Formatted time (where applicable)
+#   %time%   - Formatted speedrun time (where applicable)
 
 messages:
   # Shown when kicking players during DISCONNECT swap method
-  kick-reason: "&6A player has died! The world is resetting."
+  kick-reason: "<gold>A player has died! The world is resetting."
 
   # Title shown to players after world swap (SEAMLESS method)
-  title-main: "&cA player has died!"
-  title-subtitle: "&7Starting fresh..."
+  title-main: "<red><bold>A player has died!"
+  title-subtitle: "<gray>Starting fresh..."
 
   # Announced when the end goal (e.g., dragon) is defeated
   # %time% will be replaced with the final speedrun time
-  dragon-defeat: "&a&lVICTORY! &fThe Ender Dragon has been defeated!\n&7Final Time: &e&l%time%"
+  dragon-defeat: "<green><bold>VICTORY!</bold> <white>The Ender Dragon has been defeated!\n<gray>Final Time: <yellow><bold>%time%"
 
   # Shown when redirecting a player to the active world
-  redirect: "&aMoving you to the active hardcore world."
+  redirect: "<green>Moving you to the active hardcore world."
 
   # Shown when a player tries to join during world reset
-  world-resetting: "&cThe world is currently resetting. Please try again in a moment."
+  world-resetting: "<red>The world is currently resetting. Please try again in a moment."
 
   # Shown when the timer starts
-  timer-started: "&aThe timer has started! Good luck!"
+  timer-started: "<green>The timer has started! Good luck!"
 
   # Shown when the timer is paused (no players online)
-  timer-paused: "&eTimer paused - waiting for players."
+  timer-paused: "<yellow>Timer paused - waiting for players."
 
   # Death announcement format
   # %player% will be replaced with the player's name
-  player-died: "&c&l%player% &7has died! Resetting the world..."
+  player-died: "<red><bold>%player%</bold> <gray>has died! Resetting the world..."
 
 # ==================== Timer Display ====================
 

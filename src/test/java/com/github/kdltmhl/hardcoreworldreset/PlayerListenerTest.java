@@ -1,5 +1,6 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
+import net.kyori.adventure.text.Component;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.mockbukkit.mockbukkit.world.WorldMock;
@@ -75,7 +76,7 @@ class PlayerListenerTest {
             player.teleport(wrongWorld.getSpawnLocation());
 
             // When - simulate join event
-            PlayerJoinEvent event = new PlayerJoinEvent(player, "joined");
+            PlayerJoinEvent event = new PlayerJoinEvent(player, Component.text("joined"));
             listener.onPlayerJoin(event);
 
             // Then - player should be teleported to active world
@@ -111,7 +112,7 @@ class PlayerListenerTest {
             assertThat(server.getOnlinePlayers()).hasSize(1);
 
             // When
-            PlayerQuitEvent event = new PlayerQuitEvent(player, "left");
+            PlayerQuitEvent event = new PlayerQuitEvent(player, Component.text("left"), PlayerQuitEvent.QuitReason.DISCONNECTED);
             listener.onPlayerQuit(event);
 
             // Then - no errors
@@ -150,8 +151,9 @@ class PlayerListenerTest {
             player.teleport(activeWorld.getSpawnLocation());
 
             // When
-            PlayerRespawnEvent event = new PlayerRespawnEvent(player,
-                    player.getLocation(), false);
+            PlayerRespawnEvent event = new PlayerRespawnEvent(
+                    player, player.getLocation(), false, false, false,
+                    PlayerRespawnEvent.RespawnReason.DEATH);
             listener.onPlayerRespawn(event);
 
             // Then

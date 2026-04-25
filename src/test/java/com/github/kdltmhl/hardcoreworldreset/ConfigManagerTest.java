@@ -1,5 +1,6 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.mockbukkit.mockbukkit.MockBukkit;
 import org.mockbukkit.mockbukkit.ServerMock;
 import org.junit.jupiter.api.AfterEach;
@@ -176,15 +177,16 @@ class ConfigManagerTest {
         }
 
         @Test
-        @DisplayName("Should translate color codes in messages")
+        @DisplayName("Should parse messages into Adventure Components (no raw & codes)")
         void shouldTranslateColorCodesInMessages() {
             // Given
             configManager.load();
 
-            // Then - color codes should be translated (& -> §)
+            // Then — messages are Component objects, not raw strings.
+            // Serialising to plain text should not contain ampersand color codes.
             ConfigManager.Messages messages = configManager.getMessages();
-            // The actual translation happens in the Messages constructor
-            assertThat(messages.titleMain).doesNotContain("&c"); // Should be translated
+            String plainTitle = PlainTextComponentSerializer.plainText().serialize(messages.titleMain);
+            assertThat(plainTitle).doesNotContain("&c"); // Raw code must be gone after parsing
         }
     }
 

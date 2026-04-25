@@ -1,11 +1,13 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.World;
 import org.bukkit.entity.EnderDragon;
+import org.bukkit.entity.Guardian;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Wither;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -18,6 +20,9 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 
 /**
  * Handles player-related events for the hardcore world reset plugin.
+ *
+ * <p>As of v3.0.0 (Minecraft 1.21.5) all messaging uses the Adventure API.
+ * Legacy {@code ChatColor} and {@code broadcastMessage} are fully removed.
  */
 public class PlayerListener implements Listener {
 
@@ -32,6 +37,8 @@ public class PlayerListener implements Listener {
         this.plugin = plugin;
     }
 
+    // ==================== Join & Respawn ====================
+
     /**
      * Handles player join events.
      * Ensures players are in the active world and starts the timer if needed.
@@ -45,20 +52,20 @@ public class PlayerListener implements Listener {
             // Set spawn point to active world
             player.setBedSpawnLocation(activeWorld.getSpawnLocation(), true);
 
-            // Teleport player to active world if they're not in it
+            // Teleport player to active world if they are not already in it
             String playerWorldBase = plugin.getWorldManager().getBaseWorldName(player.getWorld().getName());
             String activeWorldBase = plugin.getWorldManager().getBaseWorldName(activeWorld.getName());
 
             if (!playerWorldBase.equals(activeWorldBase)) {
                 player.teleport(activeWorld.getSpawnLocation());
-                String redirectMessage = plugin.getConfigManager().getMessages().redirect;
-                if (redirectMessage != null && !redirectMessage.isEmpty()) {
-                    player.sendMessage(redirectMessage);
+                Component redirectMsg = plugin.getConfigManager().getMessages().redirect;
+                if (!redirectMsg.equals(Component.empty())) {
+                    player.sendMessage(redirectMsg);
                 }
             }
         }
 
-        // Start timer if this is the first player and auto-start is enabled
+        // Start timer if enough players are online and auto-start is enabled
         ConfigManager config = plugin.getConfigManager();
         int minPlayers = config.getMinPlayersToStart();
 
@@ -78,86 +85,55 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         World activeWorld = plugin.getActiveWorld();
 
-        // Handle end dimension respawn (death in the end)
+        // Handle end-dimension respawn (death in The End)
         if (player.getWorld().getEnvironment() == World.Environment.THE_END && activeWorld != null) {
-            // Use delayed teleport to ensure respawn completes first
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                player.teleport(activeWorld.getSpawnLocation());
-            }, 1L);
+            Bukkit.getScheduler().runTaskLater(plugin, () ->
+                    player.teleport(activeWorld.getSpawnLocation()), 1L);
             return;
         }
 
-        // Set respawn location to active world
         if (activeWorld != null) {
             event.setRespawnLocation(activeWorld.getSpawnLocation());
         }
     }
 
-    /**
-     * Handles Ender Dragon death events.
-     * Stops the timer and announces completion when the goal is achieved.
-     */
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onEnderDragonDeath(EntityDeathEvent event) {
-        if (!(event.getEntity() instanceof EnderDragon)) {
-            return;
-        }
-
-        // Check if this is the configured end goal
-        ConfigManager config = plugin.getConfigManager();
-        if (config.getEndGoal() != ConfigManager.EndGoal.ENDER_DRAGON) {
-            return;
-        }
-
-        World activeWorld = plugin.getActiveWorld();
-        if (activeWorld == null) {
-            return;
-        }
-
-        // Verify the dragon died in our active world's end dimension
-        String expectedEndWorld = activeWorld.getName() + "_the_end";
-        if (!event.getEntity().getWorld().getName().equals(expectedEndWorld)) {
-            return;
-        }
-
-        // Stop timer and announce victory
-        String finalTime = plugin.stopTimerAndAnnounce();
-        String messageTemplate = config.getMessages().dragonDefeat;
-        String finalMessage = messageTemplate.replace("%time%", finalTime);
-        Bukkit.broadcastMessage(finalMessage);
-
-        plugin.getLogger().info("Run completed! Final time: " + finalTime);
-    }
+    // ==================== Death Events ====================
 
     /**
      * Handles player death events.
-     * Triggers world reset when a player dies in the active world.
+     * Triggers world reset when a player dies in the active world set.
+     *
+     * <p>Players with the {@code hardcoreworldreset.bypass} permission are
+     * excluded from triggering a world reset (useful for admins / spectators).
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player deadPlayer = event.getEntity();
-        World activeWorld = plugin.getActiveWorld();
 
-        if (activeWorld == null) {
+        // Bypass permission check
+        if (deadPlayer.hasPermission("hardcoreworldreset.bypass")) {
             return;
         }
 
-        // Check if the death occurred in the active world set
+        World activeWorld = plugin.getActiveWorld();
+        if (activeWorld == null) return;
+
+        // Only trigger if the death happened inside the active world set
         String playerWorldBase = plugin.getWorldManager().getBaseWorldName(deadPlayer.getWorld().getName());
         String activeWorldBase = plugin.getWorldManager().getBaseWorldName(activeWorld.getName());
 
-        if (!playerWorldBase.equals(activeWorldBase)) {
-            return;
-        }
+        if (!playerWorldBase.equals(activeWorldBase)) return;
 
-        // Store original game mode
+        // Already handled — prevent double-trigger
+        if (plugin.isSwapping()) return;
+
         GameMode originalGameMode = deadPlayer.getGameMode();
 
-        // Clear drops and XP
+        // Clear drops and XP in true hardcore fashion
         event.getDrops().clear();
         event.setDroppedExp(0);
 
-        // Respawn player and trigger world swap
+        // Respawn player first, then trigger world swap
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             deadPlayer.spigot().respawn();
             plugin.triggerWorldSwap(deadPlayer, originalGameMode);
@@ -165,8 +141,45 @@ public class PlayerListener implements Listener {
     }
 
     /**
+     * Handles entity death events for end-goal detection
+     * (Ender Dragon, Wither, Elder Guardian depending on config).
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onEntityDeath(EntityDeathEvent event) {
+        ConfigManager config = plugin.getConfigManager();
+        World activeWorld = plugin.getActiveWorld();
+        if (activeWorld == null) return;
+
+        var entity = event.getEntity();
+        ConfigManager.EndGoal goal = config.getEndGoal();
+
+        boolean isGoalEntity = switch (goal) {
+            case ENDER_DRAGON  -> entity instanceof EnderDragon;
+            case WITHER        -> entity instanceof Wither;
+            case ELDER_GUARDIAN -> isElderGuardian(entity);
+            case NONE          -> false;
+        };
+
+        if (!isGoalEntity) return;
+
+        // Verify death occurred in the active world set
+        String entityWorldBase = plugin.getWorldManager().getBaseWorldName(entity.getWorld().getName());
+        String activeWorldBase = plugin.getWorldManager().getBaseWorldName(activeWorld.getName());
+        if (!entityWorldBase.equals(activeWorldBase)) return;
+
+        // Stop timer and broadcast victory
+        String finalTime = plugin.stopTimerAndAnnounce();
+        Component victoryMsg = config.getMessages().buildDragonDefeat(finalTime);
+        Bukkit.broadcast(victoryMsg);
+
+        plugin.getLogger().info("Run completed! Final time: " + finalTime);
+    }
+
+    // ==================== Quit & Pre-login ====================
+
+    /**
      * Handles player quit events.
-     * Pauses timer if no players remain online.
+     * Pauses the timer when fewer players are online than {@code min-players-to-start}.
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
@@ -180,15 +193,22 @@ public class PlayerListener implements Listener {
 
     /**
      * Handles async player pre-login events.
-     * Prevents players from joining during world swap.
+     * Prevents players from joining while a world swap is in progress.
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
         if (plugin.isSwapping()) {
-            String reason = plugin.getConfigManager().getMessages().worldResetting;
-            event.disallow(
-                    AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    reason);
+            Component reason = plugin.getConfigManager().getMessages().worldResetting;
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, reason);
         }
+    }
+
+    // ==================== Helpers ====================
+
+    private boolean isElderGuardian(org.bukkit.entity.Entity entity) {
+        if (entity instanceof Guardian guardian) {
+            return guardian.isElder();
+        }
+        return false;
     }
 }

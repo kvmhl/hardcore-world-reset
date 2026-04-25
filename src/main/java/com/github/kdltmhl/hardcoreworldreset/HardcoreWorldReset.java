@@ -1,7 +1,10 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Difficulty;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -12,12 +15,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Main plugin class for HardcoreWorldReset.
- * Manages world resets on player death in hardcore mode.
+ *
+ * <p>Manages world resets on player death in hardcore mode.
+ * As of v3.0.0 (Minecraft 1.21.5) all text output uses the
+ * Adventure API — {@code ChatColor}, {@code broadcastMessage},
+ * and {@code kickPlayer(String)} are fully removed.
  */
 public final class HardcoreWorldReset extends JavaPlugin {
 
@@ -34,6 +42,8 @@ public final class HardcoreWorldReset extends JavaPlugin {
     private long pausedTime = 0L;
     private boolean isTimerRunning = false;
     private boolean isSwapping = false;
+
+    // ==================== Lifecycle ====================
 
     @Override
     public void onEnable() {
@@ -79,9 +89,9 @@ public final class HardcoreWorldReset extends JavaPlugin {
         loadStateFromConfig();
 
         getLogger().info("HardcoreWorldReset Initializing...");
-        getLogger().info("Active world: " + activeWorldName);
+        getLogger().info("Active world:  " + activeWorldName);
         getLogger().info("Standby world: " + standbyWorldName);
-        getLogger().info("Swap method: " + configManager.getSwapMethod());
+        getLogger().info("Swap method:   " + configManager.getSwapMethod());
 
         setupInitialWorlds();
 
@@ -89,8 +99,18 @@ public final class HardcoreWorldReset extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(portalHandler, this);
 
+        // Register /hwr command
+        var executor = new AdminCommandExecutor(this);
+        var cmd = getCommand("hwr");
+        if (cmd != null) {
+            cmd.setExecutor(executor);
+            cmd.setTabCompleter(executor);
+        }
+
         getLogger().info("HardcoreWorldReset v" + getDescription().getVersion() + " enabled successfully!");
     }
+
+    // ==================== State ====================
 
     /**
      * Loads state from configuration.
@@ -101,14 +121,14 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
         if (savedActiveWorld == null || !savedActiveWorld.startsWith(prefix)) {
             getLogger().warning("No valid state found or world-prefix has changed. Resetting state.");
-            this.activeWorldName = prefix + "1";
+            this.activeWorldName  = prefix + "1";
             this.standbyWorldName = prefix + "2";
-            this.worldCounter = 2;
+            this.worldCounter     = 2;
             savePluginState();
         } else {
-            this.activeWorldName = savedActiveWorld;
+            this.activeWorldName  = savedActiveWorld;
             this.standbyWorldName = configManager.getStandbyWorldName();
-            this.worldCounter = configManager.getWorldCounter();
+            this.worldCounter     = configManager.getWorldCounter();
         }
     }
 
@@ -119,23 +139,21 @@ public final class HardcoreWorldReset extends JavaPlugin {
         configManager.saveState(activeWorldName, standbyWorldName, worldCounter);
     }
 
+    // ==================== World Setup ====================
+
     /**
      * Sets up initial worlds on plugin startup.
      */
     private void setupInitialWorlds() {
-        // Unload default world if it exists (we manage our own worlds)
         if (Bukkit.getWorld("world") != null) {
-            getLogger().info("Unloading default 'world' - we manage our own worlds.");
-            // Don't unload in test environment
+            getLogger().info("Unloading default 'world' — we manage our own worlds.");
             if (!isTestEnvironment()) {
                 Bukkit.unloadWorld("world", false);
             }
         }
 
-        // Create or load the active world set
         worldManager.createWorldSet(activeWorldName);
 
-        // Create or load the standby world set (for seamless swapping)
         if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
             worldManager.createWorldSet(standbyWorldName);
         }
@@ -143,11 +161,13 @@ public final class HardcoreWorldReset extends JavaPlugin {
         getLogger().info("World setup complete. Ready for hardcore gameplay!");
     }
 
+    // ==================== World Swap ====================
+
     /**
      * Triggers a world swap after a player death.
      *
      * @param deadPlayer       The player who died
-     * @param originalGameMode The player's original game mode
+     * @param originalGameMode The player's game mode before death
      */
     public void triggerWorldSwap(Player deadPlayer, GameMode originalGameMode) {
         this.isSwapping = true;
@@ -155,9 +175,8 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
         // Announce death if configured
         if (configManager.isAnnounceDeaths() && deadPlayer != null) {
-            String deathMessage = configManager.getMessages().playerDied
-                    .replace("%player%", deadPlayer.getName());
-            Bukkit.broadcastMessage(deathMessage);
+            Component msg = configManager.getMessages().buildPlayerDied(deadPlayer.getName());
+            Bukkit.broadcast(msg);
         }
 
         // Revoke all advancements for all players
@@ -185,19 +204,16 @@ public final class HardcoreWorldReset extends JavaPlugin {
         }
 
         // Schedule world cleanup and new standby creation
-        String oldWorldBaseName = this.activeWorldName;
-        String newStandbyBaseName = getWorldPrefix() + (++worldCounter);
-        this.activeWorldName = this.standbyWorldName;
+        String oldWorldBaseName    = this.activeWorldName;
+        String newStandbyBaseName  = getWorldPrefix() + (++worldCounter);
+        this.activeWorldName  = this.standbyWorldName;
         this.standbyWorldName = newStandbyBaseName;
         savePluginState();
 
-        // Delayed cleanup and new world creation
-        int delay = configManager.getTeleportDelay() + 80; // Extra time for teleports to complete
+        int delay = configManager.getTeleportDelay() + 80;
         Bukkit.getScheduler().runTaskLater(this, () -> {
             worldManager.deleteWorldSet(oldWorldBaseName);
 
-            // Ensure the new active world is created immediately (vital for DISCONNECT
-            // mode)
             worldManager.createWorldSet(activeWorldName);
 
             if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
@@ -221,9 +237,20 @@ public final class HardcoreWorldReset extends JavaPlugin {
         Location spawnLocation = newWorld.getSpawnLocation();
         ConfigManager.Messages messages = configManager.getMessages();
 
+        // Build Adventure title with fade timings
+        Title title = Title.title(
+                messages.titleMain,
+                messages.titleSubtitle,
+                Title.Times.times(
+                        Duration.ofMillis(500),   // fade in
+                        Duration.ofSeconds(3),    // stay
+                        Duration.ofMillis(1000)   // fade out
+                )
+        );
+
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.teleport(spawnLocation);
-            player.sendTitle(messages.titleMain, messages.titleSubtitle, 10, 70, 20);
+            player.showTitle(title);
         }
 
         getLogger().info("Teleported " + Bukkit.getOnlinePlayers().size() + " players to " + standbyWorldName);
@@ -231,11 +258,13 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
     /**
      * Handles disconnect swap by kicking all players.
+     * Uses {@link Player#kick(Component)} — the modern Adventure replacement
+     * for the deprecated {@code kickPlayer(String)}.
      */
     private void handleDisconnectSwap() {
-        String kickReason = configManager.getMessages().kickReason;
+        Component kickReason = configManager.getMessages().kickReason;
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.kickPlayer(kickReason);
+            player.kick(kickReason);
         }
         getLogger().info("Kicked all players for world reset.");
     }
@@ -255,99 +284,93 @@ public final class HardcoreWorldReset extends JavaPlugin {
         }
     }
 
-    // ==================== Timer Methods ====================
+    // ==================== Timer ====================
 
     /**
-     * Starts or resumes the timer.
+     * Starts or resumes the speedrun timer.
      */
     public void startOrResumeTimer() {
-        if (isTimerRunning) {
-            return;
-        }
+        if (isTimerRunning) return;
 
-        startTime = System.currentTimeMillis() - pausedTime;
-        pausedTime = 0L;
+        startTime     = System.currentTimeMillis() - pausedTime;
+        pausedTime    = 0L;
         isTimerRunning = true;
 
         if (configManager.isShowTimerInTab()) {
             timerTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
                 long elapsedMillis = System.currentTimeMillis() - startTime;
-                String formattedTime = formatTime(elapsedMillis);
-                String footer = ChatColor.GOLD + "Time: " + formattedTime;
+                Component footer = Component.text("⏱ Time: ", NamedTextColor.GOLD)
+                        .append(Component.text(formatTime(elapsedMillis), NamedTextColor.YELLOW));
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    player.setPlayerListFooter(footer);
+                    player.sendPlayerListFooter(footer);
                 }
             }, 0L, 1L);
         }
     }
 
     /**
-     * Pauses the timer.
+     * Pauses the speedrun timer.
      */
     public void pauseTimer() {
-        if (!isTimerRunning) {
-            return;
-        }
+        if (!isTimerRunning) return;
 
-        if (timerTask != null) {
-            timerTask.cancel();
-        }
-        pausedTime = System.currentTimeMillis() - startTime;
+        if (timerTask != null) timerTask.cancel();
+        pausedTime     = System.currentTimeMillis() - startTime;
         isTimerRunning = false;
     }
 
     /**
-     * Stops the timer and announces the final time.
+     * Stops the timer and updates the tab footer with the final time.
      *
-     * @return The formatted final time
+     * @return The formatted final time string, or empty string if timer was not running
      */
     public String stopTimerAndAnnounce() {
-        if (!isTimerRunning && pausedTime == 0L) {
-            return "";
-        }
+        if (!isTimerRunning && pausedTime == 0L) return "";
 
-        if (timerTask != null) {
-            timerTask.cancel();
-        }
+        if (timerTask != null) timerTask.cancel();
 
-        long finalMillis = isTimerRunning ? (System.currentTimeMillis() - startTime) : pausedTime;
+        long finalMillis = isTimerRunning
+                ? (System.currentTimeMillis() - startTime)
+                : pausedTime;
+
         String formattedTime = formatTime(finalMillis);
-        String footer = ChatColor.GREEN + "Final Time: " + formattedTime;
+
+        Component footer = Component.text("✔ Final Time: ", NamedTextColor.GREEN)
+                .append(Component.text(formattedTime, NamedTextColor.YELLOW)
+                        .decorate(TextDecoration.BOLD));
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.setPlayerListFooter(footer);
+            player.sendPlayerListFooter(footer);
         }
 
         isTimerRunning = false;
-        pausedTime = 0L;
+        pausedTime     = 0L;
         return formattedTime;
     }
 
     /**
-     * Resets the timer.
+     * Resets the speedrun timer.
      */
     public void resetTimer() {
-        if (timerTask != null) {
-            timerTask.cancel();
-        }
+        if (timerTask != null) timerTask.cancel();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.setPlayerListFooter(null);
+            player.sendPlayerListFooter(Component.empty());
         }
 
         isTimerRunning = false;
-        startTime = 0L;
-        pausedTime = 0L;
+        startTime      = 0L;
+        pausedTime     = 0L;
     }
 
     /**
-     * Formats milliseconds into HH:MM:SS.ms format.
+     * Formats milliseconds into HH:MM:SS.cc format.
      *
      * @param millis The milliseconds to format
      * @return The formatted time string
      */
     private String formatTime(long millis) {
-        long hours = TimeUnit.MILLISECONDS.toHours(millis);
+        long hours   = TimeUnit.MILLISECONDS.toHours(millis);
         long minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60;
         long seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60;
         long hundreds = (millis / 10) % 100;
@@ -356,64 +379,32 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
     // ==================== Getters ====================
 
-    /**
-     * Checks if the plugin is currently swapping worlds.
-     *
-     * @return true if swapping
-     */
-    public boolean isSwapping() {
-        return this.isSwapping;
-    }
+    /** @return true if the plugin is currently swapping worlds */
+    public boolean isSwapping() { return this.isSwapping; }
 
     /**
-     * Gets the currently active world.
+     * Gets the currently active overworld.
      *
      * @return The active world, or null if not loaded
      */
-    public World getActiveWorld() {
-        return Bukkit.getWorld(activeWorldName);
-    }
+    public World getActiveWorld() { return Bukkit.getWorld(activeWorldName); }
+
+    /** @return The active world name */
+    public String getActiveWorldName() { return activeWorldName; }
+
+    /** @return The world prefix from configuration */
+    public String getWorldPrefix() { return configManager.getWorldPrefix(); }
+
+    /** @return The configuration manager */
+    public ConfigManager getConfigManager() { return configManager; }
+
+    /** @return The world manager */
+    public WorldManager getWorldManager() { return worldManager; }
 
     /**
-     * Gets the active world name.
+     * Checks if running inside a MockBukkit test environment.
      *
-     * @return The active world name
-     */
-    public String getActiveWorldName() {
-        return activeWorldName;
-    }
-
-    /**
-     * Gets the world prefix from configuration.
-     *
-     * @return The world prefix
-     */
-    public String getWorldPrefix() {
-        return configManager.getWorldPrefix();
-    }
-
-    /**
-     * Gets the configuration manager.
-     *
-     * @return The config manager
-     */
-    public ConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    /**
-     * Gets the world manager.
-     *
-     * @return The world manager
-     */
-    public WorldManager getWorldManager() {
-        return worldManager;
-    }
-
-    /**
-     * Checks if running in a test environment.
-     *
-     * @return true if in test environment
+     * @return true if MockBukkit is on the classpath
      */
     private boolean isTestEnvironment() {
         try {
@@ -426,48 +417,18 @@ public final class HardcoreWorldReset extends JavaPlugin {
 
     // ==================== Package-private setters for testing ====================
 
-    /**
-     * Sets the world manager (for testing).
-     *
-     * @param worldManager The world manager
-     */
-    void setWorldManager(WorldManager worldManager) {
-        this.worldManager = worldManager;
-    }
+    /** @param worldManager The world manager (for testing) */
+    void setWorldManager(WorldManager worldManager) { this.worldManager = worldManager; }
 
-    /**
-     * Sets the config manager (for testing).
-     *
-     * @param configManager The config manager
-     */
-    void setConfigManager(ConfigManager configManager) {
-        this.configManager = configManager;
-    }
+    /** @param configManager The config manager (for testing) */
+    void setConfigManager(ConfigManager configManager) { this.configManager = configManager; }
 
-    /**
-     * Sets the active world name (for testing).
-     *
-     * @param activeWorldName The active world name
-     */
-    void setActiveWorldName(String activeWorldName) {
-        this.activeWorldName = activeWorldName;
-    }
+    /** @param activeWorldName The active world name (for testing) */
+    void setActiveWorldName(String activeWorldName) { this.activeWorldName = activeWorldName; }
 
-    /**
-     * Sets the standby world name (for testing).
-     *
-     * @param standbyWorldName The standby world name
-     */
-    void setStandbyWorldName(String standbyWorldName) {
-        this.standbyWorldName = standbyWorldName;
-    }
+    /** @param standbyWorldName The standby world name (for testing) */
+    void setStandbyWorldName(String standbyWorldName) { this.standbyWorldName = standbyWorldName; }
 
-    /**
-     * Sets the swapping state (for testing).
-     *
-     * @param isSwapping The swapping state
-     */
-    void setSwapping(boolean isSwapping) {
-        this.isSwapping = isSwapping;
-    }
+    /** @param isSwapping The swapping state (for testing) */
+    void setSwapping(boolean isSwapping) { this.isSwapping = isSwapping; }
 }
