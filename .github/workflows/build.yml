@@ -2,9 +2,12 @@ name: Build and Release
 
 on:
   push:
-    branches: [ "main" ]
+    branches: 
+      - "main"
+      - "feature/**"
+      - "version/*"
     tags:
-      - 'v*' # Trigger on version tags (e.g., v2.0.0)
+      - 'v*'
   workflow_dispatch:
 
 jobs:
