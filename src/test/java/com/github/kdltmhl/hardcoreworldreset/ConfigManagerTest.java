@@ -240,6 +240,21 @@ class ConfigManagerTest {
             assertThat(configManager.getStandbyWorldName()).isEqualTo("hardcore_6");
             assertThat(configManager.getWorldCounter()).isEqualTo(6);
         }
+
+        @Test
+        @DisplayName("Should persist timer state across configuration reload")
+        void shouldPersistTimerState() {
+            // Given
+            configManager.load();
+
+            // When
+            configManager.saveTimerState(true, 12_345L);
+            configManager.reload();
+
+            // Then
+            assertThat(configManager.isTimerStarted()).isTrue();
+            assertThat(configManager.getTimerElapsedMillis()).isEqualTo(12_345L);
+        }
     }
 
     @Nested

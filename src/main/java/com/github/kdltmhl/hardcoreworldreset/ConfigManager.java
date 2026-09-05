@@ -333,6 +333,36 @@ public class ConfigManager {
     }
 
     /**
+     * Returns whether a timer run has been started and should be retained.
+     *
+     * @return true if a timer run exists
+     */
+    public boolean isTimerStarted() {
+        return config.getBoolean("state.timer.started", false);
+    }
+
+    /**
+     * Gets the elapsed time saved for the current timer run.
+     *
+     * @return elapsed milliseconds, never negative
+     */
+    public long getTimerElapsedMillis() {
+        return Math.max(0L, config.getLong("state.timer.elapsed-millis", 0L));
+    }
+
+    /**
+     * Persists timer state so a server restart does not reset the current run.
+     *
+     * @param started       whether a run exists
+     * @param elapsedMillis elapsed time for the run
+     */
+    public void saveTimerState(boolean started, long elapsedMillis) {
+        config.set("state.timer.started", started);
+        config.set("state.timer.elapsed-millis", Math.max(0L, elapsedMillis));
+        plugin.saveConfig();
+    }
+
+    /**
      * Gets available swap methods as a list.
      *
      * @return List of swap method names

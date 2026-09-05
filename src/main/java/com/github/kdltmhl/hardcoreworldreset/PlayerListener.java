@@ -166,13 +166,13 @@ public class PlayerListener implements Listener {
 
     /**
      * Handles player quit events.
-     * Pauses timer if no players remain online.
+     * Pauses timer only when no players remain online. Falling below the
+     * configured start threshold does not pause an active run.
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            int minPlayers = plugin.getConfigManager().getMinPlayersToStart();
-            if (Bukkit.getOnlinePlayers().size() < minPlayers) {
+            if (Bukkit.getOnlinePlayers().isEmpty()) {
                 plugin.pauseTimer();
             }
         }, 1L);

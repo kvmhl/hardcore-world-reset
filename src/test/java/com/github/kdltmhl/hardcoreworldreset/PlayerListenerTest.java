@@ -126,9 +126,33 @@ class PlayerListenerTest {
 
             // When
             player.disconnect();
+            listener.onPlayerQuit(new PlayerQuitEvent(player, "left"));
             server.getScheduler().performTicks(5); // Let scheduled tasks run
 
-            // Then - timer should be paused (requires tick delay)
+            // Then - timer should be paused only after the last player leaves
+            assertThat(plugin.isTimerRunning()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should keep timer running when players remain below start threshold")
+        void shouldKeepTimerRunningWhenPlayersRemain() {
+            // Given
+            plugin.getConfig().set("gameplay.min-players-to-start", 2);
+            plugin.saveConfig();
+            plugin.getConfigManager().reload();
+            PlayerMock remainingPlayer = server.addPlayer();
+            PlayerMock leavingPlayer = server.addPlayer();
+            plugin.startOrResumeTimer();
+
+            // When one of two players leaves
+            leavingPlayer.disconnect();
+            listener.onPlayerQuit(new PlayerQuitEvent(leavingPlayer, "left"));
+            server.getScheduler().performTicks(5);
+
+            // Then - an active run continues while one player remains online
+            assertThat(server.getOnlinePlayers()).hasSize(1);
+            assertThat(server.getOnlinePlayers().iterator().next()).isEqualTo(remainingPlayer);
+            assertThat(plugin.isTimerRunning()).isTrue();
         }
     }
 

@@ -32,6 +32,7 @@ public class HardcoreWorldReset extends JavaPlugin {
     private BukkitTask timerTask;
     private long startTime = 0L;
     private long pausedTime = 0L;
+    private boolean timerHasStarted = false;
     private boolean isTimerRunning = false;
     private boolean isSwapping = false;
 
@@ -66,6 +67,9 @@ public class HardcoreWorldReset extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Preserve the current run before cancelling the scheduler. A normal
+        // server restart must not reset the timer.
+        persistTimerState();
         if (timerTask != null) {
             timerTask.cancel();
         }
@@ -89,6 +93,14 @@ public class HardcoreWorldReset extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(portalHandler, this);
 
+        // A plugin reload keeps players online, so resume here as well as from
+        // PlayerJoinEvent. A full server restart resumes when the first players
+        // join and uses the persisted elapsed time.
+        if (configManager.isAutoStartTimer()
+                && Bukkit.getOnlinePlayers().size() >= configManager.getMinPlayersToStart()) {
+            startOrResumeTimer();
+        }
+
         getLogger().info("HardcoreWorldReset v" + getDescription().getVersion() + " enabled successfully!");
     }
 
@@ -110,6 +122,18 @@ public class HardcoreWorldReset extends JavaPlugin {
             this.standbyWorldName = configManager.getStandbyWorldName();
             this.worldCounter = configManager.getWorldCounter();
         }
+
+        loadTimerStateFromConfig();
+    }
+
+    /**
+     * Loads timer progress without starting a scheduler before players are online.
+     */
+    private void loadTimerStateFromConfig() {
+        timerHasStarted = configManager.isTimerStarted();
+        pausedTime = timerHasStarted ? configManager.getTimerElapsedMillis() : 0L;
+        startTime = 0L;
+        isTimerRunning = false;
     }
 
     /**
@@ -267,7 +291,9 @@ public class HardcoreWorldReset extends JavaPlugin {
 
         startTime = System.currentTimeMillis() - pausedTime;
         pausedTime = 0L;
+        timerHasStarted = true;
         isTimerRunning = true;
+        persistTimerState();
 
         if (configManager.isShowTimerInTab()) {
             timerTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
@@ -292,8 +318,9 @@ public class HardcoreWorldReset extends JavaPlugin {
         if (timerTask != null) {
             timerTask.cancel();
         }
-        pausedTime = System.currentTimeMillis() - startTime;
+        pausedTime = getElapsedMillis();
         isTimerRunning = false;
+        persistTimerState();
     }
 
     /**
@@ -302,7 +329,7 @@ public class HardcoreWorldReset extends JavaPlugin {
      * @return The formatted final time
      */
     public String stopTimerAndAnnounce() {
-        if (!isTimerRunning && pausedTime == 0L) {
+        if (!timerHasStarted) {
             return "";
         }
 
@@ -310,7 +337,7 @@ public class HardcoreWorldReset extends JavaPlugin {
             timerTask.cancel();
         }
 
-        long finalMillis = isTimerRunning ? (System.currentTimeMillis() - startTime) : pausedTime;
+        long finalMillis = getElapsedMillis();
         String formattedTime = formatTime(finalMillis);
         String footer = ChatColor.GREEN + "Final Time: " + formattedTime;
 
@@ -319,7 +346,10 @@ public class HardcoreWorldReset extends JavaPlugin {
         }
 
         isTimerRunning = false;
+        timerHasStarted = false;
+        startTime = 0L;
         pausedTime = 0L;
+        persistTimerState();
         return formattedTime;
     }
 
@@ -336,8 +366,41 @@ public class HardcoreWorldReset extends JavaPlugin {
         }
 
         isTimerRunning = false;
+        timerHasStarted = false;
         startTime = 0L;
         pausedTime = 0L;
+        persistTimerState();
+    }
+
+    /**
+     * Gets the current timer value, whether running or paused.
+     */
+    public long getElapsedMillis() {
+        if (!timerHasStarted) {
+            return 0L;
+        }
+        if (!isTimerRunning) {
+            return Math.max(0L, pausedTime);
+        }
+        return Math.max(0L, System.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * Checks whether the timer scheduler is currently active.
+     *
+     * @return true while the timer is running
+     */
+    public boolean isTimerRunning() {
+        return isTimerRunning;
+    }
+
+    /**
+     * Persists the current timer run without changing whether it is active.
+     */
+    private void persistTimerState() {
+        if (configManager != null) {
+            configManager.saveTimerState(timerHasStarted, getElapsedMillis());
+        }
     }
 
     /**
