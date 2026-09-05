@@ -1,7 +1,7 @@
 name: HardcoreWorldReset
 version: ${project.version}
 main: com.github.kdltmhl.hardcoreworldreset.HardcoreWorldReset
-api-version: '1.21'
+api-version: '26.2'
 author: kdltmhl
 description: Standalone plugin that resets the world on player death in hardcore mode. Includes timer, portal handling, and automatic world management.
 website: https://github.com/kvmhl/hardcore-world-reset

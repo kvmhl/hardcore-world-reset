@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  * Main plugin class for HardcoreWorldReset.
  * Manages world resets on player death in hardcore mode.
  */
-public final class HardcoreWorldReset extends JavaPlugin {
+public class HardcoreWorldReset extends JavaPlugin {
 
     private ConfigManager configManager;
     private WorldManager worldManager;
@@ -416,12 +416,18 @@ public final class HardcoreWorldReset extends JavaPlugin {
      * @return true if in test environment
      */
     private boolean isTestEnvironment() {
-        try {
-            Class.forName("be.seeseemelk.mockbukkit.MockBukkit");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
+        for (String mockBukkitClass : new String[]{
+                "org.mockbukkit.mockbukkit.MockBukkit",
+                "be.seeseemelk.mockbukkit.MockBukkit"
+        }) {
+            try {
+                Class.forName(mockBukkitClass);
+                return true;
+            } catch (ClassNotFoundException ignored) {
+                // Try the other package name for older MockBukkit releases.
+            }
         }
+        return false;
     }
 
     // ==================== Package-private setters for testing ====================

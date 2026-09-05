@@ -1,11 +1,11 @@
 # HardcoreWorldReset
 
-[![Download Latest Release](https://img.shields.io/badge/DOWNLOAD-v2.0.0-succcess?style=for-the-badge&logo=github&color=2ea44f)](https://github.com/kvmhl/hardcore-world-reset/releases/latest)
+[![Download Latest Release](https://img.shields.io/github/v/release/kvmhl/hardcore-world-reset?style=for-the-badge&logo=github&color=2ea44f)](https://github.com/kvmhl/hardcore-world-reset/releases/latest)
 [![Java CI](https://github.com/kvmhl/hardcore-world-reset/actions/workflows/build.yml/badge.svg)](https://github.com/kvmhl/hardcore-world-reset/actions)
 
 A lightweight, powerful plugin that **automatically resets the world** whenever a player dies in Hardcore mode. Ideal for speedrunning, collaborative challenges, and "You Die, World Resets" servers.
 
-> **Requires:** Java 21+ and a server running in `hardcore=true` mode.
+> **Requires:** Java 25+ and Paper/Minecraft 26.2+ running in `hardcore=true` mode.
 
 ---
 
@@ -28,7 +28,7 @@ A lightweight, powerful plugin that **automatically resets the world** whenever 
 
 ## 🚀 Installation
 
-1.  Download the latest **[HardcoreWorldReset-2.0.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
+1.  Download the latest **[HardcoreWorldReset-2.1.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
 2.  Place it in your server's `plugins/` folder.
 3.  Open `server.properties` and ensure `hardcore=true`.
 4.  Start the server.
@@ -72,11 +72,17 @@ Currently, the plugin operates automatically without commands. Admin commands (l
 
 ---
 
+## Versioning and supported versions
+
+Releases follow semantic versioning and use matching Git tags with a `v`
+prefix, for example `2.1.0` / `v2.1.0`. Minecraft compatibility is tracked
+separately: this release targets Paper/Minecraft 26.2 and Java 25.
+
 ## Building from Source
 
 ```bash
 git clone https://github.com/kvmhl/hardcore-world-reset.git
 cd hardcore-world-reset
-.\build.bat
+.\mvnw.cmd clean verify
 ```
-The artifact will be created in `target/`.
+The artifact will be created in `target/HardcoreWorldReset-2.1.0.jar`.

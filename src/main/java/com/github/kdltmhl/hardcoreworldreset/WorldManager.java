@@ -2,7 +2,7 @@ package com.github.kdltmhl.hardcoreworldreset;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Difficulty;
-import org.bukkit.GameRule;
+import org.bukkit.GameRules;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Player;
@@ -145,16 +145,16 @@ public class WorldManager {
         world.setHardcore(true);
 
         // Configure game rules
-        world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, false);
-        world.setGameRule(GameRule.NATURAL_REGENERATION, true);
-        world.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, true);
-        world.setGameRule(GameRule.SHOW_DEATH_MESSAGES, true);
+        world.setGameRule(GameRules.IMMEDIATE_RESPAWN, false);
+        world.setGameRule(GameRules.NATURAL_HEALTH_REGENERATION, true);
+        world.setGameRule(GameRules.SHOW_ADVANCEMENT_MESSAGES, true);
+        world.setGameRule(GameRules.SHOW_DEATH_MESSAGES, true);
 
         // Overworld-specific settings
         if (isOverworld) {
-            world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, true);
-            world.setGameRule(GameRule.DO_WEATHER_CYCLE, true);
-            world.setGameRule(GameRule.SPAWN_RADIUS, 10);
+            world.setGameRule(GameRules.ADVANCE_TIME, true);
+            world.setGameRule(GameRules.ADVANCE_WEATHER, true);
+            world.setGameRule(GameRules.RESPAWN_RADIUS, 10);
         }
 
         logger.fine("Configured world settings for: " + world.getName());
