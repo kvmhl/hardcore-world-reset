@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.entity.Player;
@@ -225,6 +226,7 @@ public class HardcoreWorldReset extends JavaPlugin {
         this.isSwapping = true;
         this.resetTimer();
         beginNewRunAndCleanPlayers();
+        playSoundForOnlinePlayers(configManager.getResetStartSound());
 
         // Announce death if configured
         if (configManager.isAnnounceDeaths() && deadPlayer != null) {
@@ -394,6 +396,7 @@ public class HardcoreWorldReset extends JavaPlugin {
                     continue;
                 }
                 player.sendTitle(messages.titleMain, messages.titleSubtitle, 10, 70, 20);
+                playSound(player, configManager.getWorldReadySound());
             } catch (RuntimeException exception) {
                 getLogger().warning("Final world teleport failed for " + player.getName()
                         + ": " + exception.getMessage());
@@ -403,6 +406,30 @@ public class HardcoreWorldReset extends JavaPlugin {
 
         getLogger().info("Teleported " + Bukkit.getOnlinePlayers().size() + " players to " + activeWorldName);
         return true;
+    }
+
+    private void playSoundForOnlinePlayers(org.bukkit.Sound sound) {
+        if (!configManager.isSoundsEnabled()) {
+            return;
+        }
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            playSound(player, sound);
+        }
+    }
+
+    private void playSound(Player player, org.bukkit.Sound sound) {
+        if (player == null || !player.isOnline() || sound == null || !configManager.isSoundsEnabled()) {
+            return;
+        }
+
+        try {
+            player.playSound(player.getLocation(), sound,
+                    configManager.getSoundVolume(), configManager.getSoundPitch());
+        } catch (RuntimeException exception) {
+            getLogger().fine("Could not play reset sound for " + player.getName()
+                    + ": " + exception.getMessage());
+        }
     }
 
     /**
@@ -626,6 +653,12 @@ public class HardcoreWorldReset extends JavaPlugin {
         player.setFreezeTicks(0);
         player.setFallDistance(0.0F);
         player.setNoDamageTicks(0);
+
+        if (player.getAttribute(Attribute.MAX_HEALTH) != null) {
+            player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+        }
+        player.setFoodLevel(20);
+        player.setSaturation(5.0F);
     }
 
     /**

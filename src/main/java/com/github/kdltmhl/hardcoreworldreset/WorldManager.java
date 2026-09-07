@@ -165,6 +165,17 @@ public class WorldManager {
                     logger.warning("Could not teleport " + player.getName() + " to the waiting world.");
                 } else {
                     player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+                    if (plugin.getConfigManager().isSoundsEnabled()) {
+                        try {
+                            player.playSound(waitingLocation,
+                                    plugin.getConfigManager().getWaitingRoomSound(),
+                                    plugin.getConfigManager().getSoundVolume(),
+                                    plugin.getConfigManager().getSoundPitch());
+                        } catch (RuntimeException exception) {
+                            logger.fine("Could not play waiting-room sound for "
+                                    + player.getName() + ": " + exception.getMessage());
+                        }
+                    }
                 }
             } catch (RuntimeException exception) {
                 allPlayersTeleported = false;

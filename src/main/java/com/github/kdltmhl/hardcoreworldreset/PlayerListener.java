@@ -42,9 +42,41 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWaitingWorldDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player player
-                && plugin.getWorldManager().isWaitingWorld(player.getWorld())) {
+                && (plugin.getWorldManager().isWaitingWorld(player.getWorld()) || plugin.isSwapping())) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * Intercepts the lethal hit before vanilla can create a death state or
+     * send the hardcore game-over screen. PlayerDeathEvent is too late for a
+     * clean seamless reset because the client may already be showing that UI.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onLethalDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player) || plugin.isSwapping()) {
+            return;
+        }
+
+        World activeWorld = plugin.getActiveWorld();
+        if (activeWorld == null) {
+            return;
+        }
+
+        String playerWorldBase = plugin.getWorldManager().getBaseWorldName(player.getWorld().getName());
+        String activeWorldBase = plugin.getWorldManager().getBaseWorldName(activeWorld.getName());
+        if (!playerWorldBase.equals(activeWorldBase)) {
+            return;
+        }
+
+        double remainingHealth = player.getHealth() + player.getAbsorptionAmount()
+                - event.getFinalDamage();
+        if (remainingHealth > 0.0D) {
+            return;
+        }
+
+        event.setCancelled(true);
+        plugin.triggerWorldSwap(player, player.getGameMode());
     }
 
     /** Keeps the visible waiting room intact. */
@@ -210,8 +242,9 @@ public class PlayerListener implements Listener {
     }
 
     /**
-     * Handles player death events.
-     * Triggers world reset when a player dies in the active world.
+     * Fallback for deaths that bypassed the normal damage pipeline (for
+     * example, another plugin or a command setting health to zero). Normal
+     * lethal damage is intercepted in onLethalDamage before this event.
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
@@ -248,6 +281,7 @@ public class PlayerListener implements Listener {
         // Clear drops and XP
         event.getDrops().clear();
         event.setDroppedExp(0);
+        event.setKeepInventory(true);
 
         // Respawn player and trigger world swap
         Bukkit.getScheduler().runTaskLater(plugin, () -> {

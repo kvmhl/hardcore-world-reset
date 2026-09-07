@@ -1,6 +1,7 @@
 package com.github.kdltmhl.hardcoreworldreset;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.Arrays;
@@ -30,6 +31,12 @@ public class ConfigManager {
     private boolean waitingRoomEnabled;
     private String waitingWorldName;
     private int waitingRoomRadius;
+    private boolean soundsEnabled;
+    private Sound resetStartSound;
+    private Sound waitingRoomSound;
+    private Sound worldReadySound;
+    private float soundVolume;
+    private float soundPitch;
     private Messages messages;
 
     /**
@@ -100,6 +107,7 @@ public class ConfigManager {
 
         loadCoreSettings();
         loadGameplaySettings();
+        loadSoundSettings();
         loadMessages();
 
         validateConfig();
@@ -168,6 +176,38 @@ public class ConfigManager {
                 config.getString("messages.timer-started", "&aThe timer has started!"),
                 config.getString("messages.timer-paused", "&eTimer paused - no players online."),
                 config.getString("messages.player-died", "&c%player% has died!"));
+    }
+
+    /** Loads optional transition sound effects with safe fallbacks. */
+    private void loadSoundSettings() {
+        soundsEnabled = config.getBoolean("sounds.enabled", true);
+        resetStartSound = readSound("sounds.reset-start", Sound.BLOCK_PORTAL_TRIGGER);
+        waitingRoomSound = readSound("sounds.waiting-room", Sound.BLOCK_PORTAL_TRAVEL);
+        worldReadySound = readSound("sounds.world-ready", Sound.ENTITY_PLAYER_LEVELUP);
+
+        soundVolume = (float) config.getDouble("sounds.volume", 1.0D);
+        soundPitch = (float) config.getDouble("sounds.pitch", 1.0D);
+        if (!Float.isFinite(soundVolume) || soundVolume <= 0.0F) {
+            soundVolume = 1.0F;
+        }
+        if (!Float.isFinite(soundPitch) || soundPitch <= 0.0F) {
+            soundPitch = 1.0F;
+        }
+    }
+
+    private Sound readSound(String path, Sound fallback) {
+        String configured = config.getString(path, fallback.name());
+        if (configured == null || configured.isBlank()) {
+            return fallback;
+        }
+
+        try {
+            return Sound.valueOf(configured.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            plugin.getLogger().warning("Invalid sound at " + path + ": " + configured
+                    + ". Using " + fallback.name() + ".");
+            return fallback;
+        }
     }
 
     /**
@@ -325,6 +365,30 @@ public class ConfigManager {
      */
     public int getWaitingRoomRadius() {
         return waitingRoomRadius;
+    }
+
+    public boolean isSoundsEnabled() {
+        return soundsEnabled;
+    }
+
+    public Sound getResetStartSound() {
+        return resetStartSound;
+    }
+
+    public Sound getWaitingRoomSound() {
+        return waitingRoomSound;
+    }
+
+    public Sound getWorldReadySound() {
+        return worldReadySound;
+    }
+
+    public float getSoundVolume() {
+        return soundVolume;
+    }
+
+    public float getSoundPitch() {
+        return soundPitch;
     }
 
     /**

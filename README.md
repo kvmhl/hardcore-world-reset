@@ -31,7 +31,7 @@ A lightweight, powerful plugin that **automatically resets the world** whenever 
 
 ## 🚀 Installation
 
-1.  Download the latest **[HardcoreWorldReset-2.6.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
+1.  Download the latest **[HardcoreWorldReset-2.6.1.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
 2.  Place it in your server's `plugins/` folder.
 3.  Open `server.properties` and ensure `hardcore=true`.
 4.  Start the server.
@@ -76,6 +76,16 @@ not reset the run; it resumes when players are online again.
 | `waiting-room.world-name` | `"hardcore_waiting"` | Persistent world name for the waiting room. |
 | `waiting-room.room-radius` | `4` | Half-size of the glass cage in blocks; `4` creates a 9x9 room. |
 
+### Sound effects
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `sounds.enabled` | `true` | Enables reset transition sounds. |
+| `sounds.reset-start` | `BLOCK_PORTAL_TRIGGER` | Played when the lethal hit is intercepted and the reset starts. |
+| `sounds.waiting-room` | `BLOCK_PORTAL_TRAVEL` | Played after a player reaches the waiting room. |
+| `sounds.world-ready` | `ENTITY_PLAYER_LEVELUP` | Played after a player reaches the new active world. |
+| `sounds.volume` / `sounds.pitch` | `1.0` / `1.0` | Shared volume and pitch for reset sounds. |
+
 The default seamless swap first moves all online players into a persistent
 void waiting world (`hardcore_waiting`). The room is a small glass cage and is
 protected from PvP, all damage, explosions, interactions, and block changes. While players wait there, Paper's
@@ -99,7 +109,7 @@ Currently, the plugin operates automatically without commands. Admin commands (l
 ## Versioning and supported versions
 
 Releases follow semantic versioning and use matching Git tags with a `v`
-prefix, for example `2.6.0` / `v2.6.0`. Minecraft compatibility is tracked
+prefix, for example `2.6.1` / `v2.6.1`. Minecraft compatibility is tracked
 separately: this release targets Paper/Minecraft 26.2 and Java 25.
 
 Plugin updates, reloads, and server restarts never clear inventories. Inventory
@@ -114,4 +124,4 @@ git clone https://github.com/kvmhl/hardcore-world-reset.git
 cd hardcore-world-reset
 .\mvnw.cmd clean verify
 ```
-The artifact will be created in `target/HardcoreWorldReset-2.6.0.jar`.
+The artifact will be created in `target/HardcoreWorldReset-2.6.1.jar`.

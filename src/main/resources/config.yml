@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.6.0
+# Version: 2.6.1
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -108,6 +108,18 @@ messages:
   # Death announcement format
   # %player% will be replaced with the player's name
   player-died: "&c&l%player% &7has died! Resetting the world..."
+
+# ==================== Sound Effects ====================
+
+# Sounds played during a seamless or disconnect reset. Set enabled to false
+# to disable all reset sounds. Sound names are Bukkit/Paper Sound enum names.
+sounds:
+  enabled: true
+  reset-start: "BLOCK_PORTAL_TRIGGER"
+  waiting-room: "BLOCK_PORTAL_TRAVEL"
+  world-ready: "ENTITY_PLAYER_LEVELUP"
+  volume: 1.0
+  pitch: 1.0
 
 # ==================== Timer Display ====================
 

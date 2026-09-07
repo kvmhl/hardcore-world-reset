@@ -14,6 +14,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -184,6 +185,31 @@ class PlayerListenerTest {
 
             // Then
             assertThat(event.getRespawnLocation().getWorld()).isEqualTo(activeWorld);
+        }
+    }
+
+    @Nested
+    @DisplayName("Lethal Damage Tests")
+    class LethalDamageTests {
+
+        @Test
+        @DisplayName("Should cancel lethal damage before a death event is created")
+        void shouldCancelLethalDamageBeforeDeath() {
+            WorldMock activeWorld = server.addSimpleWorld("hardcore_lethal");
+            plugin.setActiveWorldName("hardcore_lethal");
+            plugin.setWorldManager(new WorldManager(plugin));
+
+            PlayerMock player = server.addPlayer();
+            player.teleport(activeWorld.getSpawnLocation());
+            player.setHealth(1.0D);
+
+            EntityDamageEvent event = new EntityDamageEvent(
+                    player, EntityDamageEvent.DamageCause.FREEZE, 4.0D);
+
+            listener.onLethalDamage(event);
+
+            assertThat(event.isCancelled()).isTrue();
+            assertThat(plugin.isSwapping()).isTrue();
         }
     }
 
