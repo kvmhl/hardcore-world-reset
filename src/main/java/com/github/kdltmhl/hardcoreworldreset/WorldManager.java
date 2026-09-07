@@ -252,7 +252,8 @@ public class WorldManager {
     }
 
     /**
-     * Pre-generates a square of chunks around the spawn in every dimension.
+     * Pre-generates a square of chunks around the gameplay entry point in
+     * every dimension.
      * Paper performs each chunk request asynchronously. Requests are chained
      * one at a time instead of flooding the server with a whole rectangle;
      * this keeps the preparation work from producing a large TPS spike. The
@@ -286,6 +287,7 @@ public class WorldManager {
 
         List<ChunkRequest> requests = createChunkRequests(baseName, distance);
         AtomicInteger nextRequest = new AtomicInteger(0);
+        AtomicInteger failedAttempts = new AtomicInteger(0);
         AtomicBoolean completed = new AtomicBoolean(false);
         Runnable[] pump = new Runnable[1];
         pump[0] = () -> {
@@ -293,7 +295,7 @@ public class WorldManager {
                 return;
             }
 
-            int requestIndex = nextRequest.getAndIncrement();
+            int requestIndex = nextRequest.get();
             if (requestIndex >= requests.size()) {
                 completePreparation(baseName, completed, onReady, distance);
                 return;
@@ -301,12 +303,24 @@ public class WorldManager {
 
             ChunkRequest request = requests.get(requestIndex);
             try {
-                request.world.getChunkAtAsync(request.chunkX, request.chunkZ, true, false,
-                        ignored -> Bukkit.getScheduler().runTask(plugin, pump[0]));
+                request.world.getChunkAtAsync(request.chunkX, request.chunkZ, true, true,
+                        chunk -> Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (completed.get() || !plugin.isEnabled()) {
+                                return;
+                            }
+
+                            if (chunk == null || !request.world.isChunkGenerated(
+                                    request.chunkX, request.chunkZ)) {
+                                retryChunkPreparation(request, failedAttempts, pump[0]);
+                                return;
+                            }
+
+                            failedAttempts.set(0);
+                            nextRequest.incrementAndGet();
+                            pump[0].run();
+                        }));
             } catch (RuntimeException exception) {
-                logger.warning("Could not pre-generate " + request.world.getName() + " chunk "
-                        + request.chunkX + "," + request.chunkZ + ": " + exception.getMessage());
-                Bukkit.getScheduler().runTask(plugin, pump[0]);
+                retryChunkPreparation(request, failedAttempts, pump[0]);
             }
         };
 
@@ -334,7 +348,7 @@ public class WorldManager {
                 continue;
             }
 
-            Location spawn = world.getSpawnLocation();
+            Location spawn = getPreparationCenter(world);
             int centerChunkX = spawn.getBlockX() >> 4;
             int centerChunkZ = spawn.getBlockZ() >> 4;
             for (int offsetX = -distance; offsetX <= distance; offsetX++) {
@@ -347,6 +361,39 @@ public class WorldManager {
 
         requests.sort(Comparator.comparingInt(ChunkRequest::distanceFromSpawn));
         return requests;
+    }
+
+    /**
+     * Returns the location players actually use when entering a dimension.
+     * The End uses the plugin's obsidian platform at (100, 50, 0), not the
+     * default End world spawn near (0, 0).
+     */
+    private Location getPreparationCenter(World world) {
+        if (world.getEnvironment() == World.Environment.THE_END
+                && plugin.getPortalHandler() != null) {
+            return plugin.getPortalHandler().getEndSpawnLocation(world);
+        }
+        return world.getSpawnLocation();
+    }
+
+    /**
+     * Retries a chunk without advancing the queue. A failed generation must
+     * never be treated as prepared, otherwise players could still arrive at a
+     * synchronous-generation spike after the swap.
+     */
+    private void retryChunkPreparation(ChunkRequest request, AtomicInteger failedAttempts,
+            Runnable pump) {
+        int attempts = failedAttempts.incrementAndGet();
+        if (attempts == 1 || attempts % 20 == 0) {
+            logger.warning("Could not finish pre-generating " + request.world.getName()
+                    + " chunk " + request.chunkX + "," + request.chunkZ
+                    + ". Retrying (attempt " + attempts + ").");
+        }
+
+        long delay = attempts >= 3 ? 100L : 1L;
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskLater(plugin, pump, delay);
+        }
     }
 
     private void completePreparation(String baseName, AtomicBoolean completed,

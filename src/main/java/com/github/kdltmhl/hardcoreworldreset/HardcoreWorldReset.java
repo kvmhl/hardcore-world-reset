@@ -194,14 +194,49 @@ public class HardcoreWorldReset extends JavaPlugin {
                     // starting generation while the first run is active.
                     prepareWorldSetIfNeeded(getWorldPrefix() + (worldCounter + 1), () -> {
                         activeWorldReady = true;
+                        releasePlayersAfterInitialPreparation();
                         startTimerIfPlayersReady();
                     });
                 });
             } else {
                 activeWorldReady = true;
+                releasePlayersAfterInitialPreparation();
                 startTimerIfPlayersReady();
             }
         });
+    }
+
+    /**
+     * Releases players who joined while the initial spawn area was being
+     * generated. They must not enter the active world before preparation has
+     * completed, otherwise the first movement can trigger synchronous chunk
+     * generation and distort the run start.
+     */
+    private void releasePlayersAfterInitialPreparation() {
+        World activeWorld = getActiveWorld();
+        World waitingWorld = worldManager.getWaitingWorld();
+        if (activeWorld == null || waitingWorld == null || isSwapping) {
+            return;
+        }
+
+        Location spawn = activeWorld.getSpawnLocation();
+        for (Player player : waitingWorld.getPlayers().toArray(Player[]::new)) {
+            try {
+                if (player.teleport(spawn)) {
+                    player.setBedSpawnLocation(spawn, true);
+                    String redirectMessage = configManager.getMessages().redirect;
+                    if (redirectMessage != null && !redirectMessage.isEmpty()) {
+                        player.sendMessage(redirectMessage);
+                    }
+                } else {
+                    getLogger().warning("Could not release " + player.getName()
+                            + " from the waiting world after initial preparation.");
+                }
+            } catch (RuntimeException exception) {
+                getLogger().warning("Initial preparation teleport failed for "
+                        + player.getName() + ": " + exception.getMessage());
+            }
+        }
     }
 
     private void startTimerIfPlayersReady() {
@@ -687,12 +722,31 @@ public class HardcoreWorldReset extends JavaPlugin {
     }
 
     /**
+     * Checks whether the active world and its configured preparation area are
+     * ready for players.
+     *
+     * @return true when the active world is ready
+     */
+    public boolean isActiveWorldReady() {
+        return this.activeWorldReady;
+    }
+
+    /**
      * Gets the currently active world.
      *
      * @return The active world, or null if not loaded
      */
     public World getActiveWorld() {
         return Bukkit.getWorld(activeWorldName);
+    }
+
+    /**
+     * Gets the portal handler used for dimension entry-point locations.
+     *
+     * @return the portal handler, or null before plugin initialization
+     */
+    public PortalHandler getPortalHandler() {
+        return portalHandler;
     }
 
     /**

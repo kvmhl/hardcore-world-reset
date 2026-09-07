@@ -153,7 +153,7 @@ public class ConfigManager {
         preserveInventoryOnSwap = config.getBoolean("gameplay.preserve-inventory-on-swap", false);
         announceDeaths = config.getBoolean("gameplay.announce-deaths", true);
         showTimerInTab = config.getBoolean("gameplay.show-timer-in-tab", true);
-        worldPregenDistance = config.getInt("performance.world-pregen-distance", 8);
+        worldPregenDistance = config.getInt("performance.world-pregen-distance", 16);
         teleportDelay = config.getInt("gameplay.teleport-delay-ticks", 20);
         minPlayersToStart = config.getInt("gameplay.min-players-to-start", 1);
         waitingRoomEnabled = config.getBoolean("waiting-room.enabled", true);

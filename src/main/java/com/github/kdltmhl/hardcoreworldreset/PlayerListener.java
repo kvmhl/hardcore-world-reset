@@ -140,6 +140,21 @@ public class PlayerListener implements Listener {
             return;
         }
 
+        // During startup the active world's preparation area may still be
+        // generating. Keep joining players in the protected room until the
+        // complete area is ready, so they never spawn into a laggy frontier.
+        if (!plugin.isActiveWorldReady()) {
+            World waitingWorld = plugin.getWorldManager().getWaitingWorld();
+            if (plugin.getConfigManager().isWaitingRoomEnabled() && waitingWorld != null) {
+                if (player.teleport(waitingWorld.getSpawnLocation())) {
+                    player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+                } else {
+                    player.kickPlayer(plugin.getConfigManager().getMessages().worldResetting);
+                }
+                return;
+            }
+        }
+
         World activeWorld = plugin.getActiveWorld();
 
         if (activeWorld != null) {

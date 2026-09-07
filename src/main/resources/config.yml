@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.6.1
+# Version: 2.6.2
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -56,8 +56,9 @@ gameplay:
 performance:
   # Pre-generate chunks around spawn for each run world before players enter it
   # 0 = disabled, 1-32 = chunk radius to pre-generate around each dimension's spawn
-  # Higher values reduce lag during world swap but increase preparation time
-  world-pregen-distance: 8
+  # 16 = a 33x33 chunk area (1,089 chunks) per dimension
+  # Higher values reduce lag during world swap but increase preparation time and disk usage
+  world-pregen-distance: 16
 
 # ==================== Waiting Room Settings ====================
 
