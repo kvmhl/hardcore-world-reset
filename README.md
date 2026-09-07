@@ -31,7 +31,7 @@ A lightweight, powerful plugin that **automatically resets the world** whenever 
 
 ## 🚀 Installation
 
-1.  Download the latest **[HardcoreWorldReset-2.6.2.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
+1.  Download the latest **[HardcoreWorldReset-2.6.3.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
 2.  Place it in your server's `plugins/` folder.
 3.  Open `server.properties` and ensure `hardcore=true`.
 4.  Start the server.
@@ -112,7 +112,7 @@ Currently, the plugin operates automatically without commands. Admin commands (l
 ## Versioning and supported versions
 
 Releases follow semantic versioning and use matching Git tags with a `v`
-prefix, for example `2.6.2` / `v2.6.2`. Minecraft compatibility is tracked
+prefix, for example `2.6.3` / `v2.6.3`. Minecraft compatibility is tracked
 separately: this release targets Paper/Minecraft 26.2 and Java 25.
 
 Plugin updates, reloads, and server restarts never clear inventories. Inventory
@@ -127,4 +127,4 @@ git clone https://github.com/kvmhl/hardcore-world-reset.git
 cd hardcore-world-reset
 .\mvnw.cmd clean verify
 ```
-The artifact will be created in `target/HardcoreWorldReset-2.6.2.jar`.
+The artifact will be created in `target/HardcoreWorldReset-2.6.3.jar`.

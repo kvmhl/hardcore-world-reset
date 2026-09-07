@@ -219,7 +219,7 @@ public class HardcoreWorldReset extends JavaPlugin {
             return;
         }
 
-        Location spawn = activeWorld.getSpawnLocation();
+        Location spawn = worldManager.getSafeSpawnLocation(activeWorld);
         for (Player player : waitingWorld.getPlayers().toArray(Player[]::new)) {
             try {
                 if (player.teleport(spawn)) {
@@ -419,7 +419,7 @@ public class HardcoreWorldReset extends JavaPlugin {
             return false;
         }
 
-        Location spawnLocation = newWorld.getSpawnLocation();
+        Location spawnLocation = worldManager.getSafeSpawnLocation(newWorld);
         ConfigManager.Messages messages = configManager.getMessages();
 
         for (Player player : Bukkit.getOnlinePlayers().toArray(Player[]::new)) {

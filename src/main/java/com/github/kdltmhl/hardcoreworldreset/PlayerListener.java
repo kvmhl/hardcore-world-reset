@@ -19,6 +19,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 
@@ -132,7 +133,9 @@ public class PlayerListener implements Listener {
         // after a swap has started. Keep that player in the safe room.
         if (plugin.isSwapping()) {
             World waitingWorld = plugin.getWorldManager().getWaitingWorld();
-            if (waitingWorld != null && player.teleport(waitingWorld.getSpawnLocation())) {
+            if (waitingWorld != null && player.teleport(
+                    plugin.getWorldManager().getWaitingRoomLocation(waitingWorld))) {
+                player.setFallDistance(0.0F);
                 player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
             } else {
                 player.kickPlayer(plugin.getConfigManager().getMessages().worldResetting);
@@ -146,7 +149,8 @@ public class PlayerListener implements Listener {
         if (!plugin.isActiveWorldReady()) {
             World waitingWorld = plugin.getWorldManager().getWaitingWorld();
             if (plugin.getConfigManager().isWaitingRoomEnabled() && waitingWorld != null) {
-                if (player.teleport(waitingWorld.getSpawnLocation())) {
+                if (player.teleport(plugin.getWorldManager().getWaitingRoomLocation(waitingWorld))) {
+                    player.setFallDistance(0.0F);
                     player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
                 } else {
                     player.kickPlayer(plugin.getConfigManager().getMessages().worldResetting);
@@ -158,15 +162,16 @@ public class PlayerListener implements Listener {
         World activeWorld = plugin.getActiveWorld();
 
         if (activeWorld != null) {
+            org.bukkit.Location safeSpawn = plugin.getWorldManager().getSafeSpawnLocation(activeWorld);
             // Set spawn point to active world
-            player.setBedSpawnLocation(activeWorld.getSpawnLocation(), true);
+            player.setBedSpawnLocation(safeSpawn, true);
 
             // Teleport player to active world if they're not in it
             String playerWorldBase = plugin.getWorldManager().getBaseWorldName(player.getWorld().getName());
             String activeWorldBase = plugin.getWorldManager().getBaseWorldName(activeWorld.getName());
 
             if (!playerWorldBase.equals(activeWorldBase)) {
-                player.teleport(activeWorld.getSpawnLocation());
+                player.teleport(safeSpawn);
                 String redirectMessage = plugin.getConfigManager().getMessages().redirect;
                 if (redirectMessage != null && !redirectMessage.isEmpty()) {
                     player.sendMessage(redirectMessage);
@@ -198,7 +203,7 @@ public class PlayerListener implements Listener {
         if (plugin.isSwapping()) {
             World waitingWorld = plugin.getWorldManager().getWaitingWorld();
             if (waitingWorld != null) {
-                event.setRespawnLocation(waitingWorld.getSpawnLocation());
+                event.setRespawnLocation(plugin.getWorldManager().getWaitingRoomLocation(waitingWorld));
                 return;
             }
         }
@@ -209,15 +214,33 @@ public class PlayerListener implements Listener {
         if (player.getWorld().getEnvironment() == World.Environment.THE_END && activeWorld != null) {
             // Use delayed teleport to ensure respawn completes first
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                player.teleport(activeWorld.getSpawnLocation());
+                player.teleport(plugin.getWorldManager().getSafeSpawnLocation(activeWorld));
             }, 1L);
             return;
         }
 
         // Set respawn location to active world
         if (activeWorld != null) {
-            event.setRespawnLocation(activeWorld.getSpawnLocation());
+            event.setRespawnLocation(plugin.getWorldManager().getSafeSpawnLocation(activeWorld));
         }
+    }
+
+    /**
+     * Recovers players if an external teleport, a stale waiting-world spawn,
+     * or a chunk-load race ever places them below the protected room.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldVoidFall(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        World waitingWorld = plugin.getWorldManager().getWaitingWorld();
+        if (waitingWorld == null || !waitingWorld.equals(player.getWorld())
+                || event.getTo() == null
+                || event.getTo().getY() >= 62.0D) {
+            return;
+        }
+
+        event.setTo(plugin.getWorldManager().getWaitingRoomLocation(waitingWorld));
+        player.setFallDistance(0.0F);
     }
 
     /**

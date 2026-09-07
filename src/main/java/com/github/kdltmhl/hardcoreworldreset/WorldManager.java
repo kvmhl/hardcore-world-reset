@@ -3,6 +3,7 @@ package com.github.kdltmhl.hardcoreworldreset;
 import org.bukkit.Bukkit;
 import org.bukkit.Difficulty;
 import org.bukkit.GameRules;
+import org.bukkit.HeightMap;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -136,6 +137,9 @@ public class WorldManager {
         try {
             managedWorlds.add(waitingWorldName);
             configureWaitingWorld(world);
+            // Force the room's chunk into memory before building or using the
+            // room. This prevents a teleport into an unloaded void chunk.
+            world.getChunkAt(0, 0, true);
             buildWaitingRoom(world);
             return world;
         } catch (RuntimeException exception) {
@@ -156,7 +160,7 @@ public class WorldManager {
             return false;
         }
 
-        Location waitingLocation = waitingWorld.getSpawnLocation();
+        Location waitingLocation = getWaitingRoomLocation(waitingWorld);
         boolean allPlayersTeleported = true;
         for (Player player : Bukkit.getOnlinePlayers()) {
             try {
@@ -164,6 +168,7 @@ public class WorldManager {
                     allPlayersTeleported = false;
                     logger.warning("Could not teleport " + player.getName() + " to the waiting world.");
                 } else {
+                    player.setFallDistance(0.0F);
                     player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
                     if (plugin.getConfigManager().isSoundsEnabled()) {
                         try {
@@ -201,6 +206,19 @@ public class WorldManager {
     }
 
     /**
+     * Returns the fixed, loaded location inside the protected waiting room.
+     * The stored world spawn is intentionally not used because an old or
+     * externally-created waiting world may contain a stale spawn height.
+     */
+    public Location getWaitingRoomLocation(World waitingWorld) {
+        if (waitingWorld == null) {
+            return null;
+        }
+        waitingWorld.getChunkAt(0, 0, true);
+        return new Location(waitingWorld, 0.5, WAITING_ROOM_FLOOR_Y + 1.0, 0.5);
+    }
+
+    /**
      * Checks whether a world is the dedicated swap waiting world.
      */
     public boolean isWaitingWorld(World world) {
@@ -227,7 +245,9 @@ public class WorldManager {
         int maximum = radius;
         for (int x = minimum; x <= maximum; x++) {
             for (int z = minimum; z <= maximum; z++) {
-                world.getBlockAt(x, WAITING_ROOM_FLOOR_Y, z).setType(Material.GLASS, false);
+                // An opaque, indestructible floor is the last line of defence
+                // if a client misses a teleport or the room is reloaded.
+                world.getBlockAt(x, WAITING_ROOM_FLOOR_Y, z).setType(Material.BEDROCK, false);
                 world.getBlockAt(x, WAITING_ROOM_CEILING_Y, z).setType(Material.GLASS, false);
             }
         }
@@ -374,6 +394,32 @@ public class WorldManager {
             return plugin.getPortalHandler().getEndSpawnLocation(world);
         }
         return world.getSpawnLocation();
+    }
+
+    /**
+     * Returns a spawn location on the highest generated non-leaf surface at
+     * the world's configured X/Z spawn. The preparation phase has already
+     * generated this chunk, so this check does not cause a generation stall.
+     */
+    public Location getSafeSpawnLocation(World world) {
+        if (world == null) {
+            return null;
+        }
+        if (world.getEnvironment() == World.Environment.THE_END
+                && plugin.getPortalHandler() != null) {
+            return plugin.getPortalHandler().getEndSpawnLocation(world);
+        }
+
+        Location configured = world.getSpawnLocation();
+        int blockX = configured.getBlockX();
+        int blockZ = configured.getBlockZ();
+        world.getChunkAt(blockX >> 4, blockZ >> 4, true);
+        int surfaceY = world.getHighestBlockYAt(blockX, blockZ,
+                HeightMap.MOTION_BLOCKING_NO_LEAVES);
+        int safeY = Math.max(world.getMinHeight() + 1,
+                Math.min(surfaceY + 1, world.getMaxHeight() - 2));
+        return new Location(world, blockX + 0.5, safeY, blockZ + 0.5,
+                configured.getYaw(), configured.getPitch());
     }
 
     /**

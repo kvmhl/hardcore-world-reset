@@ -175,7 +175,7 @@ public class PortalHandler implements Listener {
                 logger.warning("Overworld not found for " + baseWorldName);
                 return null;
             }
-            return overworld.getSpawnLocation();
+            return worldManager.getSafeSpawnLocation(overworld);
         }
 
         return null;
