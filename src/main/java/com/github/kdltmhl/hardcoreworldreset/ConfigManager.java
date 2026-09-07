@@ -373,6 +373,15 @@ public class ConfigManager {
     }
 
     /**
+     * Returns whether a real world reset has requested cleanup for players
+     * who were offline. Missing state is deliberately treated as false so a
+     * plugin update or legacy-config migration can never delete inventory.
+     */
+    public boolean isResetCleanupPending() {
+        return config.getBoolean("state.reset-cleanup-pending", false);
+    }
+
+    /**
      * Saves the current plugin state.
      *
      * @param activeWorld  The active world name
@@ -396,6 +405,9 @@ public class ConfigManager {
         config.set("state.standby-world", standbyWorld);
         config.set("state.world-counter", worldCounter);
         config.set("state.reset-generation", Math.max(0L, resetGeneration));
+        // Preserve this flag during startup/reload/update. Only
+        // saveResetGeneration may turn it on for a real reset.
+        config.set("state.reset-cleanup-pending", isResetCleanupPending());
         plugin.saveConfig();
     }
 
@@ -406,6 +418,7 @@ public class ConfigManager {
      */
     public void saveResetGeneration(long resetGeneration) {
         config.set("state.reset-generation", Math.max(0L, resetGeneration));
+        config.set("state.reset-cleanup-pending", true);
         plugin.saveConfig();
     }
 

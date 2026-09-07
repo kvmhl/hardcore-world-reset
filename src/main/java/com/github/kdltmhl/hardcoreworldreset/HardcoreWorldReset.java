@@ -46,6 +46,11 @@ public class HardcoreWorldReset extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // Enabling/reloading/updating this plugin must never be interpreted as
+        // a world reset. Inventory cleanup is only armed by
+        // beginNewRunAndCleanPlayers().
+        getLogger().info("Plugin startup is inventory-safe; no inventory cleanup is performed during enable.");
+
         // Load configuration
         configManager = new ConfigManager(this);
         configManager.load();
@@ -586,7 +591,11 @@ public class HardcoreWorldReset extends JavaPlugin {
             return;
         }
 
-        if (lastSeen != resetGeneration) {
+        // A changed generation alone is not enough to authorize cleanup. The
+        // explicit persisted flag is armed only by an actual world reset and
+        // prevents plugin updates, reloads, or malformed legacy state from
+        // deleting a player's inventory.
+        if (configManager.isResetCleanupPending() && lastSeen != resetGeneration) {
             clearPlayerState(player);
             markPlayerResetGeneration(player);
         }

@@ -265,6 +265,30 @@ class ConfigManagerTest {
             assertThat(configManager.isTimerStarted()).isTrue();
             assertThat(configManager.getTimerElapsedMillis()).isEqualTo(12_345L);
         }
+
+        @Test
+        @DisplayName("Should not arm inventory cleanup during config load or update")
+        void shouldKeepResetCleanupDisarmedByDefault() {
+            // Given
+            configManager.load();
+
+            // Then
+            assertThat(configManager.isResetCleanupPending()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should arm inventory cleanup only when a reset generation is saved")
+        void shouldArmResetCleanupExplicitly() {
+            // Given
+            configManager.load();
+
+            // When
+            configManager.saveResetGeneration(1L);
+            configManager.reload();
+
+            // Then
+            assertThat(configManager.isResetCleanupPending()).isTrue();
+        }
     }
 
     @Nested

@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.5.0
+# Version: 2.6.0
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -144,6 +144,8 @@ state:
   standby-world: "hardcore_2"
   world-counter: 2
   reset-generation: 0
+  # This is set only by an actual world reset, never by plugin startup/update.
+  reset-cleanup-pending: false
   timer:
     started: false
     elapsed-millis: 0
