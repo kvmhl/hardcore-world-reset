@@ -34,9 +34,6 @@ import java.util.stream.Stream;
  */
 public class WorldManager {
 
-    public static final String WAITING_WORLD_NAME = "hardcore_waiting";
-    private static final int WAITING_ROOM_MIN = -4;
-    private static final int WAITING_ROOM_MAX = 4;
     private static final int WAITING_ROOM_FLOOR_Y = 64;
     private static final int WAITING_ROOM_CEILING_Y = 68;
 
@@ -111,17 +108,22 @@ public class WorldManager {
      * @return the waiting world, or null when it could not be created
      */
     public World createWaitingWorld() {
-        World world = Bukkit.getWorld(WAITING_WORLD_NAME);
+        if (!plugin.getConfigManager().isWaitingRoomEnabled()) {
+            return null;
+        }
+
+        String waitingWorldName = plugin.getConfigManager().getWaitingWorldName();
+        World world = Bukkit.getWorld(waitingWorldName);
         if (world == null && !plugin.isTestEnvironmentForWorldManager()) {
             try {
-                WorldCreator creator = new WorldCreator(WAITING_WORLD_NAME);
+                WorldCreator creator = new WorldCreator(waitingWorldName);
                 creator.environment(World.Environment.NORMAL);
                 creator.generator(new VoidChunkGenerator());
                 creator.generateStructures(false);
                 creator.hardcore(false);
                 world = creator.createWorld();
             } catch (Exception exception) {
-                logger.severe("Failed to create waiting world " + WAITING_WORLD_NAME
+                logger.severe("Failed to create waiting world " + waitingWorldName
                         + ": " + exception.getMessage());
                 return null;
             }
@@ -131,37 +133,67 @@ public class WorldManager {
             return null;
         }
 
-        managedWorlds.add(WAITING_WORLD_NAME);
-        configureWaitingWorld(world);
-        buildWaitingRoom(world);
-        return world;
+        try {
+            managedWorlds.add(waitingWorldName);
+            configureWaitingWorld(world);
+            buildWaitingRoom(world);
+            return world;
+        } catch (RuntimeException exception) {
+            logger.severe("Failed to configure waiting world " + waitingWorldName
+                    + ": " + exception.getMessage());
+            return null;
+        }
     }
 
     /**
      * Teleports every currently online player into the waiting room.
      * This is called before any new run chunks are generated.
      */
-    public void teleportPlayersToWaitingWorld() {
+    public boolean teleportPlayersToWaitingWorld() {
         World waitingWorld = createWaitingWorld();
         if (waitingWorld == null) {
-            logger.warning("Waiting world is unavailable; players remain in their current world.");
-            return;
+            logger.warning("Waiting world is unavailable; the caller must use a safe fallback before generation.");
+            return false;
         }
 
         Location waitingLocation = waitingWorld.getSpawnLocation();
+        boolean allPlayersTeleported = true;
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.teleport(waitingLocation);
-            player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+            try {
+                if (!player.teleport(waitingLocation)) {
+                    allPlayersTeleported = false;
+                    logger.warning("Could not teleport " + player.getName() + " to the waiting world.");
+                } else {
+                    player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+                }
+            } catch (RuntimeException exception) {
+                allPlayersTeleported = false;
+                logger.warning("Waiting-world teleport failed for " + player.getName()
+                        + ": " + exception.getMessage());
+            }
         }
         logger.info("Teleported " + Bukkit.getOnlinePlayers().size()
                 + " players to the waiting world while the next run is prepared.");
+        return allPlayersTeleported;
+    }
+
+    /**
+     * Gets the currently loaded configured waiting world.
+     *
+     * @return the waiting world, or null if disabled/unavailable
+     */
+    public World getWaitingWorld() {
+        if (!plugin.getConfigManager().isWaitingRoomEnabled()) {
+            return null;
+        }
+        return Bukkit.getWorld(plugin.getConfigManager().getWaitingWorldName());
     }
 
     /**
      * Checks whether a world is the dedicated swap waiting world.
      */
     public boolean isWaitingWorld(World world) {
-        return world != null && WAITING_WORLD_NAME.equals(world.getName());
+        return world != null && plugin.getConfigManager().getWaitingWorldName().equals(world.getName());
     }
 
     private void configureWaitingWorld(World world) {
@@ -179,19 +211,22 @@ public class WorldManager {
     }
 
     private void buildWaitingRoom(World world) {
-        for (int x = WAITING_ROOM_MIN; x <= WAITING_ROOM_MAX; x++) {
-            for (int z = WAITING_ROOM_MIN; z <= WAITING_ROOM_MAX; z++) {
+        int radius = plugin.getConfigManager().getWaitingRoomRadius();
+        int minimum = -radius;
+        int maximum = radius;
+        for (int x = minimum; x <= maximum; x++) {
+            for (int z = minimum; z <= maximum; z++) {
                 world.getBlockAt(x, WAITING_ROOM_FLOOR_Y, z).setType(Material.GLASS, false);
                 world.getBlockAt(x, WAITING_ROOM_CEILING_Y, z).setType(Material.GLASS, false);
             }
         }
 
         for (int y = WAITING_ROOM_FLOOR_Y + 1; y < WAITING_ROOM_CEILING_Y; y++) {
-            for (int coordinate = WAITING_ROOM_MIN; coordinate <= WAITING_ROOM_MAX; coordinate++) {
-                world.getBlockAt(WAITING_ROOM_MIN, y, coordinate).setType(Material.GLASS, false);
-                world.getBlockAt(WAITING_ROOM_MAX, y, coordinate).setType(Material.GLASS, false);
-                world.getBlockAt(coordinate, y, WAITING_ROOM_MIN).setType(Material.GLASS, false);
-                world.getBlockAt(coordinate, y, WAITING_ROOM_MAX).setType(Material.GLASS, false);
+            for (int coordinate = minimum; coordinate <= maximum; coordinate++) {
+                world.getBlockAt(minimum, y, coordinate).setType(Material.GLASS, false);
+                world.getBlockAt(maximum, y, coordinate).setType(Material.GLASS, false);
+                world.getBlockAt(coordinate, y, minimum).setType(Material.GLASS, false);
+                world.getBlockAt(coordinate, y, maximum).setType(Material.GLASS, false);
             }
         }
     }
@@ -216,6 +251,16 @@ public class WorldManager {
      * @param onReady  callback after all requested chunks are generated
      */
     public void prepareWorldSet(String baseName, Runnable onReady) {
+        if (!isCompleteWorldSetLoaded(baseName)) {
+            logger.warning("Cannot prepare incomplete world set: " + baseName
+                    + ". Retrying after the missing dimension(s) are available.");
+            if (plugin.isEnabled()) {
+                Bukkit.getScheduler().runTaskLater(plugin,
+                        () -> prepareWorldSet(baseName, onReady), 20L);
+            }
+            return;
+        }
+
         if (preparedWorldSets.contains(baseName)) {
             onReady.run();
             return;
@@ -317,6 +362,15 @@ public class WorldManager {
      */
     public boolean isWorldSetPrepared(String baseName) {
         return preparedWorldSets.contains(baseName);
+    }
+
+    /**
+     * Checks that all three dimensions of a world set are currently loaded.
+     */
+    public boolean isCompleteWorldSetLoaded(String baseName) {
+        return Bukkit.getWorld(baseName) != null
+                && Bukkit.getWorld(baseName + "_nether") != null
+                && Bukkit.getWorld(baseName + "_the_end") != null;
     }
 
     private record ChunkRequest(World world, int chunkX, int chunkZ, int distanceFromSpawn) {

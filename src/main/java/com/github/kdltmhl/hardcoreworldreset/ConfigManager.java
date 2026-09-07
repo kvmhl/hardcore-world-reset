@@ -27,6 +27,9 @@ public class ConfigManager {
     private int worldPregenDistance;
     private int teleportDelay;
     private int minPlayersToStart;
+    private boolean waitingRoomEnabled;
+    private String waitingWorldName;
+    private int waitingRoomRadius;
     private Messages messages;
 
     /**
@@ -145,6 +148,9 @@ public class ConfigManager {
         worldPregenDistance = config.getInt("performance.world-pregen-distance", 8);
         teleportDelay = config.getInt("gameplay.teleport-delay-ticks", 20);
         minPlayersToStart = config.getInt("gameplay.min-players-to-start", 1);
+        waitingRoomEnabled = config.getBoolean("waiting-room.enabled", true);
+        waitingWorldName = config.getString("waiting-room.world-name", "hardcore_waiting");
+        waitingRoomRadius = config.getInt("waiting-room.room-radius", 4);
     }
 
     /**
@@ -193,6 +199,24 @@ public class ConfigManager {
         if (worldPregenDistance < 0 || worldPregenDistance > 32) {
             issues.add("world-pregen-distance must be between 0 and 32");
             worldPregenDistance = Math.max(0, Math.min(32, worldPregenDistance));
+        }
+
+        if (waitingWorldName == null || waitingWorldName.isBlank()
+                || !waitingWorldName.matches("[A-Za-z0-9._-]+")
+                || waitingWorldName.equals(".") || waitingWorldName.equals("..")
+                || waitingWorldName.equals(worldPrefix + "1")
+                || waitingWorldName.equals(worldPrefix + "2")) {
+            issues.add("waiting-room.world-name is invalid; using hardcore_waiting");
+            waitingWorldName = "hardcore_waiting";
+        }
+
+        if (waitingRoomRadius < 2 || waitingRoomRadius > 32) {
+            issues.add("waiting-room.room-radius must be between 2 and 32");
+            waitingRoomRadius = Math.max(2, Math.min(32, waitingRoomRadius));
+        }
+
+        if (!waitingRoomEnabled && swapMethod == SwapMethod.SEAMLESS) {
+            plugin.getLogger().warning("Waiting room is disabled. Only disable it on a server with enough performance headroom: world generation will happen while players remain in the active world.");
         }
 
         if (!issues.isEmpty()) {
@@ -280,6 +304,27 @@ public class ConfigManager {
      */
     public int getMinPlayersToStart() {
         return minPlayersToStart;
+    }
+
+    /**
+     * @return true when seamless swaps should use the protected waiting room
+     */
+    public boolean isWaitingRoomEnabled() {
+        return waitingRoomEnabled;
+    }
+
+    /**
+     * @return the persistent waiting world name
+     */
+    public String getWaitingWorldName() {
+        return waitingWorldName;
+    }
+
+    /**
+     * @return the waiting room half-size in blocks
+     */
+    public int getWaitingRoomRadius() {
+        return waitingRoomRadius;
     }
 
     /**

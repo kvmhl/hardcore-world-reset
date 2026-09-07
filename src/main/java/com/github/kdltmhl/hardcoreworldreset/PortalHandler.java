@@ -61,6 +61,14 @@ public class PortalHandler implements Listener {
         World fromWorld = player.getWorld();
         String fromWorldName = fromWorld.getName();
 
+        // The waiting room is a protected void world with no dimensions.
+        // Never let vanilla portal handling or this plugin's dimension mapping
+        // move a player out of it during a swap.
+        if (worldManager.isWaitingWorld(fromWorld)) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Only handle portals in managed worlds
         String worldPrefix = plugin.getWorldPrefix();
         if (!fromWorldName.startsWith(worldPrefix)) {

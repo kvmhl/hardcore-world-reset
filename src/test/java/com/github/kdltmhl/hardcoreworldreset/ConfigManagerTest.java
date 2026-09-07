@@ -98,6 +98,18 @@ class ConfigManagerTest {
             // Then
             assertThat(configManager.getEndGoal()).isEqualTo(ConfigManager.EndGoal.ENDER_DRAGON);
         }
+
+        @Test
+        @DisplayName("Should return safe waiting room defaults")
+        void shouldReturnWaitingRoomDefaults() {
+            // Given
+            configManager.load();
+
+            // Then
+            assertThat(configManager.isWaitingRoomEnabled()).isTrue();
+            assertThat(configManager.getWaitingWorldName()).isEqualTo("hardcore_waiting");
+            assertThat(configManager.getWaitingRoomRadius()).isEqualTo(4);
+        }
     }
 
     @Nested

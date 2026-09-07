@@ -9,11 +9,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -60,6 +63,30 @@ public class PlayerListener implements Listener {
         }
     }
 
+    /** Prevents players from using buckets, buttons, items, or other interactions there. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldInteract(PlayerInteractEvent event) {
+        if (plugin.getWorldManager().isWaitingWorld(event.getPlayer().getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Prevents explosions from damaging the waiting room. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldEntityExplode(EntityExplodeEvent event) {
+        if (plugin.getWorldManager().isWaitingWorld(event.getLocation().getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Prevents block-triggered explosions from damaging the waiting room. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldBlockExplode(BlockExplodeEvent event) {
+        if (plugin.getWorldManager().isWaitingWorld(event.getBlock().getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
     /**
      * Handles player join events.
      * Ensures players are in the active world and starts the timer if needed.
@@ -68,6 +95,19 @@ public class PlayerListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         plugin.cleanupPlayerForCurrentReset(player);
+
+        // A reconnect race can occasionally pass the async pre-login check
+        // after a swap has started. Keep that player in the safe room.
+        if (plugin.isSwapping()) {
+            World waitingWorld = plugin.getWorldManager().getWaitingWorld();
+            if (waitingWorld != null && player.teleport(waitingWorld.getSpawnLocation())) {
+                player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+            } else {
+                player.kickPlayer(plugin.getConfigManager().getMessages().worldResetting);
+            }
+            return;
+        }
+
         World activeWorld = plugin.getActiveWorld();
 
         if (activeWorld != null) {
@@ -105,6 +145,17 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
+
+        // Any death during the preparation window is contained in the
+        // waiting room and must never respawn a player into a half-ready run.
+        if (plugin.isSwapping()) {
+            World waitingWorld = plugin.getWorldManager().getWaitingWorld();
+            if (waitingWorld != null) {
+                event.setRespawnLocation(waitingWorld.getSpawnLocation());
+                return;
+            }
+        }
+
         World activeWorld = plugin.getActiveWorld();
 
         // Handle end dimension respawn (death in the end)
@@ -165,6 +216,18 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player deadPlayer = event.getEntity();
+
+        if (plugin.isSwapping()) {
+            event.getDrops().clear();
+            event.setDroppedExp(0);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (deadPlayer.isOnline()) {
+                    deadPlayer.spigot().respawn();
+                }
+            }, 1L);
+            return;
+        }
+
         World activeWorld = plugin.getActiveWorld();
 
         if (activeWorld == null) {

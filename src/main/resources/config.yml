@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.4.0
+# Version: 2.5.0
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -58,6 +58,22 @@ performance:
   # 0 = disabled, 1-32 = chunk radius to pre-generate around each dimension's spawn
   # Higher values reduce lag during world swap but increase preparation time
   world-pregen-distance: 8
+
+# ==================== Waiting Room Settings ====================
+
+waiting-room:
+  # Move players into a protected void room before seamless world generation.
+  # WARNING: Set this to false only if the server has enough performance headroom.
+  # With false, players remain in the active world while chunks are generated,
+  # which can cause severe lag and exposes them to the generation transition.
+  enabled: true
+
+  # Persistent world used for the waiting room. Do not use a world that contains
+  # important player builds. Changing this name leaves the old waiting world on disk.
+  world-name: "hardcore_waiting"
+
+  # Half-size of the visible glass cage. 4 creates a 9x9 room.
+  room-radius: 4
 
 # ==================== Messages ====================
 # All messages support color codes using & (e.g., &a for green, &c for red)
