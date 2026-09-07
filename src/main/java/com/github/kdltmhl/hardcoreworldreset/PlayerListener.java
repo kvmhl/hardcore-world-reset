@@ -9,8 +9,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -30,6 +33,31 @@ public class PlayerListener implements Listener {
      */
     public PlayerListener(HardcoreWorldReset plugin) {
         this.plugin = plugin;
+    }
+
+    /** Prevents accidental damage while players are waiting for the swap. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldDamage(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player player
+                && plugin.getWorldManager().isWaitingWorld(player.getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Keeps the visible waiting room intact. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldBlockBreak(BlockBreakEvent event) {
+        if (plugin.getWorldManager().isWaitingWorld(event.getBlock().getWorld())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Keeps players from modifying the waiting room. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWaitingWorldBlockPlace(BlockPlaceEvent event) {
+        if (plugin.getWorldManager().isWaitingWorld(event.getBlock().getWorld())) {
+            event.setCancelled(true);
+        }
     }
 
     /**

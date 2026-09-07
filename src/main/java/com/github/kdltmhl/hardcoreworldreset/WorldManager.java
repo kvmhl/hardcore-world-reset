@@ -7,6 +7,8 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Player;
+import org.bukkit.generator.ChunkGenerator;
+import org.bukkit.Material;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Random;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -30,6 +33,12 @@ import java.util.stream.Stream;
  * This class replaces the functionality previously provided by Multiverse-Core.
  */
 public class WorldManager {
+
+    public static final String WAITING_WORLD_NAME = "hardcore_waiting";
+    private static final int WAITING_ROOM_MIN = -4;
+    private static final int WAITING_ROOM_MAX = 4;
+    private static final int WAITING_ROOM_FLOOR_Y = 64;
+    private static final int WAITING_ROOM_CEILING_Y = 68;
 
     private final HardcoreWorldReset plugin;
     private final Logger logger;
@@ -92,6 +101,108 @@ public class WorldManager {
         }
 
         return success;
+    }
+
+    /**
+     * Creates or loads the persistent void world used while a seamless swap
+     * prepares the next complete world set. The world is deliberately not a
+     * numbered run world and is therefore never removed by world cleanup.
+     *
+     * @return the waiting world, or null when it could not be created
+     */
+    public World createWaitingWorld() {
+        World world = Bukkit.getWorld(WAITING_WORLD_NAME);
+        if (world == null && !plugin.isTestEnvironmentForWorldManager()) {
+            try {
+                WorldCreator creator = new WorldCreator(WAITING_WORLD_NAME);
+                creator.environment(World.Environment.NORMAL);
+                creator.generator(new VoidChunkGenerator());
+                creator.generateStructures(false);
+                creator.hardcore(false);
+                world = creator.createWorld();
+            } catch (Exception exception) {
+                logger.severe("Failed to create waiting world " + WAITING_WORLD_NAME
+                        + ": " + exception.getMessage());
+                return null;
+            }
+        }
+
+        if (world == null) {
+            return null;
+        }
+
+        managedWorlds.add(WAITING_WORLD_NAME);
+        configureWaitingWorld(world);
+        buildWaitingRoom(world);
+        return world;
+    }
+
+    /**
+     * Teleports every currently online player into the waiting room.
+     * This is called before any new run chunks are generated.
+     */
+    public void teleportPlayersToWaitingWorld() {
+        World waitingWorld = createWaitingWorld();
+        if (waitingWorld == null) {
+            logger.warning("Waiting world is unavailable; players remain in their current world.");
+            return;
+        }
+
+        Location waitingLocation = waitingWorld.getSpawnLocation();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.teleport(waitingLocation);
+            player.sendMessage(plugin.getConfigManager().getMessages().worldResetting);
+        }
+        logger.info("Teleported " + Bukkit.getOnlinePlayers().size()
+                + " players to the waiting world while the next run is prepared.");
+    }
+
+    /**
+     * Checks whether a world is the dedicated swap waiting world.
+     */
+    public boolean isWaitingWorld(World world) {
+        return world != null && WAITING_WORLD_NAME.equals(world.getName());
+    }
+
+    private void configureWaitingWorld(World world) {
+        world.setDifficulty(Difficulty.PEACEFUL);
+        world.setHardcore(false);
+        world.setPVP(false);
+        world.setSpawnFlags(false, false);
+        world.setKeepSpawnInMemory(true);
+        world.setTime(6000L);
+        world.setStorm(false);
+        world.setThundering(false);
+        world.setGameRule(GameRules.ADVANCE_TIME, false);
+        world.setGameRule(GameRules.ADVANCE_WEATHER, false);
+        world.setSpawnLocation(0, WAITING_ROOM_FLOOR_Y + 1, 0);
+    }
+
+    private void buildWaitingRoom(World world) {
+        for (int x = WAITING_ROOM_MIN; x <= WAITING_ROOM_MAX; x++) {
+            for (int z = WAITING_ROOM_MIN; z <= WAITING_ROOM_MAX; z++) {
+                world.getBlockAt(x, WAITING_ROOM_FLOOR_Y, z).setType(Material.GLASS, false);
+                world.getBlockAt(x, WAITING_ROOM_CEILING_Y, z).setType(Material.GLASS, false);
+            }
+        }
+
+        for (int y = WAITING_ROOM_FLOOR_Y + 1; y < WAITING_ROOM_CEILING_Y; y++) {
+            for (int coordinate = WAITING_ROOM_MIN; coordinate <= WAITING_ROOM_MAX; coordinate++) {
+                world.getBlockAt(WAITING_ROOM_MIN, y, coordinate).setType(Material.GLASS, false);
+                world.getBlockAt(WAITING_ROOM_MAX, y, coordinate).setType(Material.GLASS, false);
+                world.getBlockAt(coordinate, y, WAITING_ROOM_MIN).setType(Material.GLASS, false);
+                world.getBlockAt(coordinate, y, WAITING_ROOM_MAX).setType(Material.GLASS, false);
+            }
+        }
+    }
+
+    /** Empty chunk generator for the dedicated waiting world. */
+    private static final class VoidChunkGenerator extends ChunkGenerator {
+        @Override
+        public ChunkData generateChunkData(World world, Random random, int chunkX, int chunkZ,
+                BiomeGrid biome) {
+            return createChunkData(world);
+        }
     }
 
     /**

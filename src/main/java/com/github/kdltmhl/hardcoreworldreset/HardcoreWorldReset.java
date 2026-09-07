@@ -165,6 +165,7 @@ public class HardcoreWorldReset extends JavaPlugin {
         // Create or load the standby world set (for seamless swapping)
         if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
             worldManager.createWorldSet(standbyWorldName);
+            worldManager.createWaitingWorld();
         }
 
         getLogger().info("World setup complete. Ready for hardcore gameplay!");
@@ -252,6 +253,11 @@ public class HardcoreWorldReset extends JavaPlugin {
     private void prepareAndCompleteSeamlessSwap(Player deadPlayer, GameMode originalGameMode,
             String oldWorldBaseName, String newActiveWorldName, String newStandbyWorldName,
             int nextWorldCounter) {
+        // Move players out of the active run before starting any generation.
+        // The timer stays stopped because isSwapping remains true until the
+        // complete replacement set is prepared and players return to it.
+        worldManager.teleportPlayersToWaitingWorld();
+
         String futureStandbyWorldName = getWorldPrefix() + (nextWorldCounter + 1);
         prepareWorldSetIfNeeded(newStandbyWorldName, () ->
                 prepareWorldSetIfNeeded(futureStandbyWorldName, () ->

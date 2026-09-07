@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.3.0
+# Version: 2.4.0
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -15,9 +15,10 @@ world-prefix: "hardcore_"
 
 # Method for handling world swap after a player death
 # Options:
-#   SEAMLESS - Teleports all players into the pre-warmed standby world
-#              + No disconnect and no timed wait for spawn generation
-#              - Requires disk space and preparation time for pre-generation
+#   SEAMLESS - Teleports all players into a persistent void waiting room first,
+#              then into the fully pre-generated standby world
+#              + No disconnect and no world-generation lag during the timed run
+#              - Players wait in the room while preparation completes
 #   DISCONNECT - Kicks all players and lets them reconnect when ready
 #              + Useful fallback on low-memory servers
 #              - Players must reconnect
@@ -53,7 +54,7 @@ gameplay:
 # ==================== Performance Settings ====================
 
 performance:
-  # Pre-generate chunks around spawn for the standby world
+  # Pre-generate chunks around spawn for each run world before players enter it
   # 0 = disabled, 1-32 = chunk radius to pre-generate around each dimension's spawn
   # Higher values reduce lag during world swap but increase preparation time
   world-pregen-distance: 8
