@@ -31,7 +31,7 @@ A lightweight, powerful plugin that **automatically resets the world** whenever 
 
 ## 🚀 Installation
 
-1.  Download the latest **[HardcoreWorldReset-2.2.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
+1.  Download the latest **[HardcoreWorldReset-2.3.0.jar](https://github.com/kvmhl/hardcore-world-reset/releases/latest)**.
 2.  Place it in your server's `plugins/` folder.
 3.  Open `server.properties` and ensure `hardcore=true`.
 4.  Start the server.
@@ -68,12 +68,14 @@ not reset the run; it resumes when players are online again.
 | :--- | :--- | :--- |
 | `performance.world-pregen-distance` | `8` | Chunk radius pre-generated around each dimension spawn before play starts. |
 
-The default seamless swap prepares the active and standby world sets before the
-timer starts. Paper's asynchronous chunk API is used for the configured spawn
-radius, and the timer waits until the active area is ready. The next standby
-world is warmed after each swap so world generation is not part of the timed
-run. Larger radii reduce first-visit chunk lag but increase preparation time
-and disk usage.
+The default seamless swap prepares the active world, the standby world, and
+one additional buffer world before the timer starts. Paper's asynchronous
+chunk API is used for the configured spawn radius, with one chunk request at a
+time to avoid a generation burst. On reset, the next swap world is already
+available; the following buffer is prepared before players are teleported and
+before the new timer starts. World generation therefore does not run during
+an active timed run. Larger radii reduce first-visit chunk lag but increase
+preparation time and disk usage.
 
 ---
 
@@ -89,7 +91,7 @@ Currently, the plugin operates automatically without commands. Admin commands (l
 ## Versioning and supported versions
 
 Releases follow semantic versioning and use matching Git tags with a `v`
-prefix, for example `2.2.0` / `v2.2.0`. Minecraft compatibility is tracked
+prefix, for example `2.3.0` / `v2.3.0`. Minecraft compatibility is tracked
 separately: this release targets Paper/Minecraft 26.2 and Java 25.
 
 ## Building from Source
@@ -99,4 +101,4 @@ git clone https://github.com/kvmhl/hardcore-world-reset.git
 cd hardcore-world-reset
 .\mvnw.cmd clean verify
 ```
-The artifact will be created in `target/HardcoreWorldReset-2.2.0.jar`.
+The artifact will be created in `target/HardcoreWorldReset-2.3.0.jar`.

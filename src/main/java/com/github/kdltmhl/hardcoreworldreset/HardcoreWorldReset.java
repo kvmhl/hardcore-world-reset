@@ -180,8 +180,13 @@ public class HardcoreWorldReset extends JavaPlugin {
         worldManager.prepareWorldSet(activeWorldName, () -> {
             if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
                 worldManager.prepareWorldSet(standbyWorldName, () -> {
-                    activeWorldReady = true;
-                    startTimerIfPlayersReady();
+                    // Keep one additional world set ready as a buffer. This
+                    // means the first reset can swap immediately instead of
+                    // starting generation while the first run is active.
+                    prepareWorldSetIfNeeded(getWorldPrefix() + (worldCounter + 1), () -> {
+                        activeWorldReady = true;
+                        startTimerIfPlayersReady();
+                    });
                 });
             } else {
                 activeWorldReady = true;
@@ -205,6 +210,10 @@ public class HardcoreWorldReset extends JavaPlugin {
      * @param originalGameMode The player's original game mode
      */
     public void triggerWorldSwap(Player deadPlayer, GameMode originalGameMode) {
+        if (isSwapping) {
+            return;
+        }
+
         this.isSwapping = true;
         this.resetTimer();
         beginNewRunAndCleanPlayers();
@@ -219,60 +228,98 @@ public class HardcoreWorldReset extends JavaPlugin {
         // Revoke all advancements for all players
         revokeAllAdvancements();
 
-        // Handle swap based on method
+        String oldWorldBaseName = this.activeWorldName;
+        String newActiveWorldName = this.standbyWorldName;
+        int nextWorldCounter = ++worldCounter;
+        String newStandbyWorldName = getWorldPrefix() + nextWorldCounter;
+
+        // A disconnect swap can prepare the replacement after players have
+        // been kicked. A seamless swap must prepare everything before the
+        // teleport, otherwise generation would lag the active run.
         if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
-            handleSeamlessSwap();
+            prepareAndCompleteSeamlessSwap(deadPlayer, originalGameMode,
+                    oldWorldBaseName, newActiveWorldName, newStandbyWorldName,
+                    nextWorldCounter);
+            return;
         } else {
             handleDisconnectSwap();
         }
 
-        // Restore game mode for dead player
-        if (deadPlayer != null && deadPlayer.isOnline()) {
-            if (originalGameMode == GameMode.CREATIVE || originalGameMode == GameMode.SPECTATOR) {
-                deadPlayer.setGameMode(originalGameMode);
-            } else {
-                deadPlayer.setGameMode(GameMode.SURVIVAL);
-            }
-        }
+        completeDisconnectSwap(deadPlayer, originalGameMode, oldWorldBaseName,
+                newActiveWorldName, newStandbyWorldName, nextWorldCounter);
+    }
 
-        // Schedule world cleanup and new standby creation
-        String oldWorldBaseName = this.activeWorldName;
-        String newStandbyBaseName = getWorldPrefix() + (++worldCounter);
-        this.activeWorldName = this.standbyWorldName;
-        this.standbyWorldName = newStandbyBaseName;
-        this.activeWorldReady = worldManager.isWorldSetPrepared(this.activeWorldName);
+    private void prepareAndCompleteSeamlessSwap(Player deadPlayer, GameMode originalGameMode,
+            String oldWorldBaseName, String newActiveWorldName, String newStandbyWorldName,
+            int nextWorldCounter) {
+        String futureStandbyWorldName = getWorldPrefix() + (nextWorldCounter + 1);
+        prepareWorldSetIfNeeded(newStandbyWorldName, () ->
+                prepareWorldSetIfNeeded(futureStandbyWorldName, () ->
+                        prepareWorldSetIfNeeded(newActiveWorldName, () -> {
+                            this.activeWorldName = newActiveWorldName;
+                            this.standbyWorldName = newStandbyWorldName;
+                            this.worldCounter = nextWorldCounter;
+                            this.activeWorldReady = true;
+                            savePluginState();
+
+                            handleSeamlessSwap();
+                            restoreGameMode(deadPlayer, originalGameMode);
+                            startTimerIfPlayersReady();
+                            scheduleSwapCleanup(oldWorldBaseName);
+                        })));
+    }
+
+    private void completeDisconnectSwap(Player deadPlayer, GameMode originalGameMode,
+            String oldWorldBaseName, String newActiveWorldName, String newStandbyWorldName,
+            int nextWorldCounter) {
+        restoreGameMode(deadPlayer, originalGameMode);
+        this.activeWorldName = newActiveWorldName;
+        this.standbyWorldName = newStandbyWorldName;
+        this.worldCounter = nextWorldCounter;
+        this.activeWorldReady = false;
         savePluginState();
 
-        // Start only after the new active area is ready. With a prepared
-        // standby this is immediate; otherwise Paper's async pre-generation
-        // completion starts the timer without counting generation time.
-        if (configManager.isAutoStartTimer()) {
-            if (activeWorldReady) {
-                startTimerIfPlayersReady();
-            } else {
-                worldManager.prepareWorldSet(this.activeWorldName, () -> {
-                    activeWorldReady = true;
-                    startTimerIfPlayersReady();
-                });
-            }
-        }
-
-        // Delayed cleanup and new world creation
         int delay = configManager.getTeleportDelay() + 80; // Extra time for teleports to complete
         Bukkit.getScheduler().runTaskLater(this, () -> {
             worldManager.deleteWorldSet(oldWorldBaseName);
 
-            // Ensure the new active world is created immediately (vital for DISCONNECT
-            // mode)
+            // Ensure the new active world is created after kicked players can
+            // reconnect. The timer starts from PlayerJoinEvent once ready.
             worldManager.createWorldSet(activeWorldName);
+            activeWorldReady = true;
+            this.isSwapping = false;
+            getLogger().info("World swap complete. New active world: " + activeWorldName);
+        }, delay);
+    }
 
-            if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
-                worldManager.createWorldSet(newStandbyBaseName);
-                worldManager.prepareWorldSet(newStandbyBaseName, () -> {
-                    // This callback only warms the next standby world. It
-                    // must never affect the active run timer.
-                });
+    private void prepareWorldSetIfNeeded(String worldSetName, Runnable onReady) {
+        if (Bukkit.getWorld(worldSetName) == null
+                || Bukkit.getWorld(worldSetName + "_nether") == null
+                || Bukkit.getWorld(worldSetName + "_the_end") == null) {
+            worldManager.createWorldSet(worldSetName);
+        }
+
+        if (worldManager.isWorldSetPrepared(worldSetName)) {
+            onReady.run();
+        } else {
+            worldManager.prepareWorldSet(worldSetName, onReady);
+        }
+    }
+
+    private void restoreGameMode(Player player, GameMode originalGameMode) {
+        if (player != null && player.isOnline()) {
+            if (originalGameMode == GameMode.CREATIVE || originalGameMode == GameMode.SPECTATOR) {
+                player.setGameMode(originalGameMode);
+            } else {
+                player.setGameMode(GameMode.SURVIVAL);
             }
+        }
+    }
+
+    private void scheduleSwapCleanup(String oldWorldBaseName) {
+        int delay = configManager.getTeleportDelay() + 80;
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            worldManager.deleteWorldSet(oldWorldBaseName);
             this.isSwapping = false;
             getLogger().info("World swap complete. New active world: " + activeWorldName);
         }, delay);
@@ -282,9 +329,9 @@ public class HardcoreWorldReset extends JavaPlugin {
      * Handles seamless world swap by teleporting all players.
      */
     private void handleSeamlessSwap() {
-        World newWorld = Bukkit.getWorld(standbyWorldName);
+        World newWorld = Bukkit.getWorld(activeWorldName);
         if (newWorld == null) {
-            getLogger().severe("Standby world '" + standbyWorldName + "' not found! Cannot swap.");
+            getLogger().severe("Active world '" + activeWorldName + "' not found! Cannot swap.");
             return;
         }
 
@@ -296,7 +343,7 @@ public class HardcoreWorldReset extends JavaPlugin {
             player.sendTitle(messages.titleMain, messages.titleSubtitle, 10, 70, 20);
         }
 
-        getLogger().info("Teleported " + Bukkit.getOnlinePlayers().size() + " players to " + standbyWorldName);
+        getLogger().info("Teleported " + Bukkit.getOnlinePlayers().size() + " players to " + activeWorldName);
     }
 
     /**

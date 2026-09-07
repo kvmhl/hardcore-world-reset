@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -95,9 +96,10 @@ public class WorldManager {
 
     /**
      * Pre-generates a square of chunks around the spawn in every dimension.
-     * Paper performs the chunk work asynchronously, so world generation does
-     * not block the main thread during a seamless swap. The completion
-     * callback is always returned to the server scheduler.
+     * Paper performs each chunk request asynchronously. Requests are chained
+     * one at a time instead of flooding the server with a whole rectangle;
+     * this keeps the preparation work from producing a large TPS spike. The
+     * completion callback is always returned to the server scheduler.
      *
      * @param baseName world-set base name
      * @param onReady  callback after all requested chunks are generated
@@ -115,51 +117,82 @@ public class WorldManager {
             return;
         }
 
+        List<ChunkRequest> requests = createChunkRequests(baseName, distance);
+        AtomicInteger nextRequest = new AtomicInteger(0);
+        AtomicBoolean completed = new AtomicBoolean(false);
+        Runnable[] pump = new Runnable[1];
+        pump[0] = () -> {
+            if (completed.get() || !plugin.isEnabled()) {
+                return;
+            }
+
+            int requestIndex = nextRequest.getAndIncrement();
+            if (requestIndex >= requests.size()) {
+                completePreparation(baseName, completed, onReady, distance);
+                return;
+            }
+
+            ChunkRequest request = requests.get(requestIndex);
+            try {
+                request.world.getChunkAtAsync(request.chunkX, request.chunkZ, true, false,
+                        ignored -> Bukkit.getScheduler().runTask(plugin, pump[0]));
+            } catch (RuntimeException exception) {
+                logger.warning("Could not pre-generate " + request.world.getName() + " chunk "
+                        + request.chunkX + "," + request.chunkZ + ": " + exception.getMessage());
+                Bukkit.getScheduler().runTask(plugin, pump[0]);
+            }
+        };
+
+        if (requests.isEmpty()) {
+            completePreparation(baseName, completed, onReady, distance);
+        } else {
+            Bukkit.getScheduler().runTask(plugin, pump[0]);
+        }
+    }
+
+    private List<ChunkRequest> createChunkRequests(String baseName, int distance) {
         World[] worlds = {
                 Bukkit.getWorld(baseName),
                 Bukkit.getWorld(baseName + "_nether"),
                 Bukkit.getWorld(baseName + "_the_end")
         };
-        List<World> availableWorlds = Arrays.stream(worlds)
-                .filter(Objects::nonNull)
-                .toList();
-        AtomicInteger remainingWorlds = new AtomicInteger(availableWorlds.size());
-        AtomicBoolean completed = new AtomicBoolean(false);
+        List<ChunkRequest> requests = new ArrayList<>();
 
-        if (availableWorlds.size() != worlds.length) {
+        if (Arrays.stream(worlds).anyMatch(Objects::isNull)) {
             logger.warning("Cannot pre-generate incomplete world set: " + baseName);
         }
 
-        for (World world : availableWorlds) {
-            LocationBounds bounds = getSpawnBounds(world, distance);
-            try {
-                world.getChunksAtAsync(bounds.minChunkX, bounds.minChunkZ,
-                        bounds.maxChunkX, bounds.maxChunkZ, true, () -> {
-                            finishPreparation(baseName, remainingWorlds, completed, onReady);
-                        });
-            } catch (RuntimeException exception) {
-                logger.warning("Could not pre-generate " + world.getName() + ": "
-                        + exception.getMessage());
-                finishPreparation(baseName, remainingWorlds, completed, onReady);
+        for (World world : worlds) {
+            if (world == null) {
+                continue;
+            }
+
+            Location spawn = world.getSpawnLocation();
+            int centerChunkX = spawn.getBlockX() >> 4;
+            int centerChunkZ = spawn.getBlockZ() >> 4;
+            for (int offsetX = -distance; offsetX <= distance; offsetX++) {
+                for (int offsetZ = -distance; offsetZ <= distance; offsetZ++) {
+                    requests.add(new ChunkRequest(world, centerChunkX + offsetX,
+                            centerChunkZ + offsetZ, Math.max(Math.abs(offsetX), Math.abs(offsetZ))));
+                }
             }
         }
 
-        if (remainingWorlds.get() == 0 && completed.compareAndSet(false, true)) {
-            preparedWorldSets.add(baseName);
-            onReady.run();
-        }
+        requests.sort(Comparator.comparingInt(ChunkRequest::distanceFromSpawn));
+        return requests;
     }
 
-    private void finishPreparation(String baseName, AtomicInteger remainingWorlds,
-            AtomicBoolean completed, Runnable onReady) {
-        if (remainingWorlds.decrementAndGet() != 0
-                || !completed.compareAndSet(false, true)) {
+    private void completePreparation(String baseName, AtomicBoolean completed,
+            Runnable onReady, int distance) {
+        if (!completed.compareAndSet(false, true)) {
             return;
         }
 
         preparedWorldSets.add(baseName);
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (plugin.isEnabled()) {
+                logger.info("Pre-generated " + baseName
+                        + " within " + distance + " chunks of each spawn.");
                 onReady.run();
             }
         });
@@ -175,15 +208,7 @@ public class WorldManager {
         return preparedWorldSets.contains(baseName);
     }
 
-    private LocationBounds getSpawnBounds(World world, int distance) {
-        Location spawn = world.getSpawnLocation();
-        int centerChunkX = spawn.getBlockX() >> 4;
-        int centerChunkZ = spawn.getBlockZ() >> 4;
-        return new LocationBounds(centerChunkX - distance, centerChunkZ - distance,
-                centerChunkX + distance, centerChunkZ + distance);
-    }
-
-    private record LocationBounds(int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {
+    private record ChunkRequest(World world, int chunkX, int chunkZ, int distanceFromSpawn) {
     }
 
     /**
