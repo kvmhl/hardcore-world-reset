@@ -1,7 +1,7 @@
 # ============================================== #
 #     HardcoreWorldReset Plugin Configuration    #
 # ============================================== #
-# Version: 2.1.1
+# Version: 2.2.0
 # This is a standalone plugin - no dependencies required!
 
 # ==================== Core Settings ====================
@@ -15,13 +15,13 @@ world-prefix: "hardcore_"
 
 # Method for handling world swap after a player death
 # Options:
-#   SEAMLESS - Instantly teleports all players to the new world
-#              + No disconnect for players
-#              - Causes a lag spike from creating the new standby world
+#   SEAMLESS - Teleports all players into the pre-warmed standby world
+#              + No disconnect and no timed wait for spawn generation
+#              - Requires disk space and preparation time for pre-generation
 #   DISCONNECT - Kicks all players and lets them reconnect when ready
-#              + No lag spike, timer starts at 00:00:00.00
+#              + Useful fallback on low-memory servers
 #              - Players must reconnect
-swap-method: "DISCONNECT"
+swap-method: "SEAMLESS"
 
 # The end goal that will stop the timer and announce completion
 # Options: ENDER_DRAGON, WITHER, ELDER_GUARDIAN, NONE
@@ -33,7 +33,7 @@ gameplay:
   # Automatically start the timer when enough players join
   auto-start-timer: true
 
-  # Minimum number of players required to start/continue the timer
+  # Minimum number of players required to start a new timer run
   min-players-to-start: 1
 
   # Preserve player inventory when swapping worlds (for testing purposes)
@@ -54,9 +54,9 @@ gameplay:
 
 performance:
   # Pre-generate chunks around spawn for the standby world
-  # 0 = disabled, 1-32 = chunk radius to pre-generate
-  # Higher values reduce lag during world swap but increase startup time
-  world-pregen-distance: 0
+  # 0 = disabled, 1-32 = chunk radius to pre-generate around each dimension's spawn
+  # Higher values reduce lag during world swap but increase preparation time
+  world-pregen-distance: 8
 
 # ==================== Messages ====================
 # All messages support color codes using & (e.g., &a for green, &c for red)
@@ -126,6 +126,7 @@ state:
   active-world: "hardcore_1"
   standby-world: "hardcore_2"
   world-counter: 2
+  reset-generation: 0
   timer:
     started: false
     elapsed-millis: 0

@@ -3,6 +3,7 @@ package com.github.kdltmhl.hardcoreworldreset;
 import org.bukkit.Bukkit;
 import org.bukkit.Difficulty;
 import org.bukkit.GameRules;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Player;
@@ -11,9 +12,15 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -26,6 +33,7 @@ public class WorldManager {
     private final HardcoreWorldReset plugin;
     private final Logger logger;
     private final Set<String> managedWorlds;
+    private final Set<String> preparedWorldSets;
 
     /**
      * Creates a new WorldManager instance.
@@ -36,6 +44,7 @@ public class WorldManager {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.managedWorlds = new HashSet<>();
+        this.preparedWorldSets = ConcurrentHashMap.newKeySet();
     }
 
     /**
@@ -45,6 +54,7 @@ public class WorldManager {
      * @return true if all worlds were created successfully
      */
     public boolean createWorldSet(String baseName) {
+        preparedWorldSets.remove(baseName);
         boolean success = true;
 
         // Create overworld
@@ -81,6 +91,99 @@ public class WorldManager {
         }
 
         return success;
+    }
+
+    /**
+     * Pre-generates a square of chunks around the spawn in every dimension.
+     * Paper performs the chunk work asynchronously, so world generation does
+     * not block the main thread during a seamless swap. The completion
+     * callback is always returned to the server scheduler.
+     *
+     * @param baseName world-set base name
+     * @param onReady  callback after all requested chunks are generated
+     */
+    public void prepareWorldSet(String baseName, Runnable onReady) {
+        if (preparedWorldSets.contains(baseName)) {
+            onReady.run();
+            return;
+        }
+
+        int distance = plugin.getConfigManager().getWorldPregenDistance();
+        if (distance <= 0 || plugin.isTestEnvironmentForWorldManager()) {
+            preparedWorldSets.add(baseName);
+            onReady.run();
+            return;
+        }
+
+        World[] worlds = {
+                Bukkit.getWorld(baseName),
+                Bukkit.getWorld(baseName + "_nether"),
+                Bukkit.getWorld(baseName + "_the_end")
+        };
+        List<World> availableWorlds = Arrays.stream(worlds)
+                .filter(Objects::nonNull)
+                .toList();
+        AtomicInteger remainingWorlds = new AtomicInteger(availableWorlds.size());
+        AtomicBoolean completed = new AtomicBoolean(false);
+
+        if (availableWorlds.size() != worlds.length) {
+            logger.warning("Cannot pre-generate incomplete world set: " + baseName);
+        }
+
+        for (World world : availableWorlds) {
+            LocationBounds bounds = getSpawnBounds(world, distance);
+            try {
+                world.getChunksAtAsync(bounds.minChunkX, bounds.minChunkZ,
+                        bounds.maxChunkX, bounds.maxChunkZ, true, () -> {
+                            finishPreparation(baseName, remainingWorlds, completed, onReady);
+                        });
+            } catch (RuntimeException exception) {
+                logger.warning("Could not pre-generate " + world.getName() + ": "
+                        + exception.getMessage());
+                finishPreparation(baseName, remainingWorlds, completed, onReady);
+            }
+        }
+
+        if (remainingWorlds.get() == 0 && completed.compareAndSet(false, true)) {
+            preparedWorldSets.add(baseName);
+            onReady.run();
+        }
+    }
+
+    private void finishPreparation(String baseName, AtomicInteger remainingWorlds,
+            AtomicBoolean completed, Runnable onReady) {
+        if (remainingWorlds.decrementAndGet() != 0
+                || !completed.compareAndSet(false, true)) {
+            return;
+        }
+
+        preparedWorldSets.add(baseName);
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (plugin.isEnabled()) {
+                onReady.run();
+            }
+        });
+    }
+
+    /**
+     * Checks whether the requested area of a world set is ready for play.
+     *
+     * @param baseName world-set base name
+     * @return true when pre-generation completed or is disabled
+     */
+    public boolean isWorldSetPrepared(String baseName) {
+        return preparedWorldSets.contains(baseName);
+    }
+
+    private LocationBounds getSpawnBounds(World world, int distance) {
+        Location spawn = world.getSpawnLocation();
+        int centerChunkX = spawn.getBlockX() >> 4;
+        int centerChunkZ = spawn.getBlockZ() >> 4;
+        return new LocationBounds(centerChunkX - distance, centerChunkZ - distance,
+                centerChunkX + distance, centerChunkZ + distance);
+    }
+
+    private record LocationBounds(int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {
     }
 
     /**
@@ -189,6 +292,7 @@ public class WorldManager {
      * @return true if deletion was successful
      */
     public boolean deleteWorld(String worldName) {
+        preparedWorldSets.remove(getBaseWorldName(worldName));
         World world = Bukkit.getWorld(worldName);
 
         // Evacuate any players from the world

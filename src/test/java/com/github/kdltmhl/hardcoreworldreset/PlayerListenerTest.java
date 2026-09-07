@@ -6,7 +6,11 @@ import org.mockbukkit.mockbukkit.world.WorldMock;
 import org.mockbukkit.mockbukkit.entity.PlayerMock;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -180,6 +184,46 @@ class PlayerListenerTest {
 
             // Then
             assertThat(event.getRespawnLocation().getWorld()).isEqualTo(activeWorld);
+        }
+    }
+
+    @Nested
+    @DisplayName("Reset Cleanup Tests")
+    class ResetCleanupTests {
+
+        @Test
+        @DisplayName("Should clear player state when starting a new run")
+        void shouldClearPlayerStateOnReset() {
+            // Given
+            server.addSimpleWorld("hardcore_cleanup_1");
+            server.addSimpleWorld("hardcore_cleanup_2");
+            plugin.setActiveWorldName("hardcore_cleanup_1");
+            plugin.setStandbyWorldName("hardcore_cleanup_2");
+
+            PlayerMock player = server.addPlayer();
+            player.getInventory().setItem(0, new ItemStack(Material.DIAMOND));
+            player.getInventory().setHelmet(new ItemStack(Material.DIAMOND_HELMET));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SHIELD));
+            player.getEnderChest().setItem(0, new ItemStack(Material.GOLD_INGOT));
+            player.setLevel(12);
+            player.setExp(0.75F);
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1));
+            player.setFireTicks(100);
+            player.setFallDistance(25.0F);
+
+            // When
+            plugin.triggerWorldSwap(player, GameMode.SURVIVAL);
+
+            // Then
+            assertThat(player.getInventory().isEmpty()).isTrue();
+            assertThat(player.getInventory().getArmorContents()).allMatch(item -> item == null || item.getType() == Material.AIR);
+            assertThat(player.getInventory().getItemInOffHand().getType()).isEqualTo(Material.AIR);
+            assertThat(player.getEnderChest().isEmpty()).isTrue();
+            assertThat(player.getLevel()).isZero();
+            assertThat(player.getExp()).isZero();
+            assertThat(player.getActivePotionEffects()).isEmpty();
+            assertThat(player.getFireTicks()).isZero();
+            assertThat(player.getFallDistance()).isZero();
         }
     }
 

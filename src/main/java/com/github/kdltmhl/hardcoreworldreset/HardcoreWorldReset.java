@@ -5,12 +5,17 @@ import org.bukkit.ChatColor;
 import org.bukkit.Difficulty;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +40,9 @@ public class HardcoreWorldReset extends JavaPlugin {
     private boolean timerHasStarted = false;
     private boolean isTimerRunning = false;
     private boolean isSwapping = false;
+    private boolean activeWorldReady = true;
+    private long resetGeneration = 0L;
+    private NamespacedKey resetGenerationKey;
 
     @Override
     public void onEnable() {
@@ -60,6 +68,7 @@ public class HardcoreWorldReset extends JavaPlugin {
         // Initialize managers
         worldManager = new WorldManager(this);
         portalHandler = new PortalHandler(this, worldManager);
+        resetGenerationKey = new NamespacedKey(this, "reset-generation");
 
         // Delay initialization to ensure server is fully loaded
         Bukkit.getScheduler().runTaskLater(this, this::initialize, 1L);
@@ -92,14 +101,7 @@ public class HardcoreWorldReset extends JavaPlugin {
         // Register event listeners
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(portalHandler, this);
-
-        // A plugin reload keeps players online, so resume here as well as from
-        // PlayerJoinEvent. A full server restart resumes when the first players
-        // join and uses the persisted elapsed time.
-        if (configManager.isAutoStartTimer()
-                && Bukkit.getOnlinePlayers().size() >= configManager.getMinPlayersToStart()) {
-            startOrResumeTimer();
-        }
+        prepareInitialWorlds();
 
         getLogger().info("HardcoreWorldReset v" + getDescription().getVersion() + " enabled successfully!");
     }
@@ -108,6 +110,7 @@ public class HardcoreWorldReset extends JavaPlugin {
      * Loads state from configuration.
      */
     private void loadStateFromConfig() {
+        this.resetGeneration = configManager.getResetGeneration();
         String savedActiveWorld = configManager.getActiveWorldName();
         String prefix = configManager.getWorldPrefix();
 
@@ -140,7 +143,7 @@ public class HardcoreWorldReset extends JavaPlugin {
      * Saves the current plugin state to config.
      */
     private void savePluginState() {
-        configManager.saveState(activeWorldName, standbyWorldName, worldCounter);
+        configManager.saveState(activeWorldName, standbyWorldName, worldCounter, resetGeneration);
     }
 
     /**
@@ -168,6 +171,34 @@ public class HardcoreWorldReset extends JavaPlugin {
     }
 
     /**
+     * Prepares the active world before allowing the timer to start. In
+     * seamless mode the standby world is prepared as well, so the first swap
+     * never starts a run while spawn chunks are still being generated.
+     */
+    private void prepareInitialWorlds() {
+        activeWorldReady = false;
+        worldManager.prepareWorldSet(activeWorldName, () -> {
+            if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
+                worldManager.prepareWorldSet(standbyWorldName, () -> {
+                    activeWorldReady = true;
+                    startTimerIfPlayersReady();
+                });
+            } else {
+                activeWorldReady = true;
+                startTimerIfPlayersReady();
+            }
+        });
+    }
+
+    private void startTimerIfPlayersReady() {
+        if (configManager.isAutoStartTimer()
+                && Bukkit.getOnlinePlayers().size() >= configManager.getMinPlayersToStart()
+                && !isTimerRunning) {
+            startOrResumeTimer();
+        }
+    }
+
+    /**
      * Triggers a world swap after a player death.
      *
      * @param deadPlayer       The player who died
@@ -176,6 +207,7 @@ public class HardcoreWorldReset extends JavaPlugin {
     public void triggerWorldSwap(Player deadPlayer, GameMode originalGameMode) {
         this.isSwapping = true;
         this.resetTimer();
+        beginNewRunAndCleanPlayers();
 
         // Announce death if configured
         if (configManager.isAnnounceDeaths() && deadPlayer != null) {
@@ -203,17 +235,27 @@ public class HardcoreWorldReset extends JavaPlugin {
             }
         }
 
-        // Start timer for new run
-        if (configManager.isAutoStartTimer()) {
-            this.startOrResumeTimer();
-        }
-
         // Schedule world cleanup and new standby creation
         String oldWorldBaseName = this.activeWorldName;
         String newStandbyBaseName = getWorldPrefix() + (++worldCounter);
         this.activeWorldName = this.standbyWorldName;
         this.standbyWorldName = newStandbyBaseName;
+        this.activeWorldReady = worldManager.isWorldSetPrepared(this.activeWorldName);
         savePluginState();
+
+        // Start only after the new active area is ready. With a prepared
+        // standby this is immediate; otherwise Paper's async pre-generation
+        // completion starts the timer without counting generation time.
+        if (configManager.isAutoStartTimer()) {
+            if (activeWorldReady) {
+                startTimerIfPlayersReady();
+            } else {
+                worldManager.prepareWorldSet(this.activeWorldName, () -> {
+                    activeWorldReady = true;
+                    startTimerIfPlayersReady();
+                });
+            }
+        }
 
         // Delayed cleanup and new world creation
         int delay = configManager.getTeleportDelay() + 80; // Extra time for teleports to complete
@@ -226,6 +268,10 @@ public class HardcoreWorldReset extends JavaPlugin {
 
             if (configManager.getSwapMethod() == ConfigManager.SwapMethod.SEAMLESS) {
                 worldManager.createWorldSet(newStandbyBaseName);
+                worldManager.prepareWorldSet(newStandbyBaseName, () -> {
+                    // This callback only warms the next standby world. It
+                    // must never affect the active run timer.
+                });
             }
             this.isSwapping = false;
             getLogger().info("World swap complete. New active world: " + activeWorldName);
@@ -286,6 +332,10 @@ public class HardcoreWorldReset extends JavaPlugin {
      */
     public void startOrResumeTimer() {
         if (isTimerRunning) {
+            return;
+        }
+
+        if (!activeWorldReady) {
             return;
         }
 
@@ -401,6 +451,71 @@ public class HardcoreWorldReset extends JavaPlugin {
         if (configManager != null) {
             configManager.saveTimerState(timerHasStarted, getElapsedMillis());
         }
+    }
+
+    /**
+     * Starts a new run generation and resets every online player's state.
+     * Players who are offline receive the same cleanup on their next join by
+     * comparing the generation stored in their persistent data container.
+     */
+    private void beginNewRunAndCleanPlayers() {
+        resetGeneration++;
+        configManager.saveResetGeneration(resetGeneration);
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            clearPlayerState(player);
+            markPlayerResetGeneration(player);
+        }
+    }
+
+    /**
+     * Applies reset cleanup to a player if they have not seen the current
+     * world-reset generation yet.
+     *
+     * @param player player to clean
+     */
+    public void cleanupPlayerForCurrentReset(Player player) {
+        if (player == null || resetGenerationKey == null) {
+            return;
+        }
+
+        Long lastSeen = player.getPersistentDataContainer().get(resetGenerationKey, PersistentDataType.LONG);
+        if (lastSeen == null) {
+            markPlayerResetGeneration(player);
+            return;
+        }
+
+        if (lastSeen != resetGeneration) {
+            clearPlayerState(player);
+            markPlayerResetGeneration(player);
+        }
+    }
+
+    private void markPlayerResetGeneration(Player player) {
+        player.getPersistentDataContainer().set(resetGenerationKey,
+                PersistentDataType.LONG, resetGeneration);
+    }
+
+    private void clearPlayerState(Player player) {
+        if (configManager.isPreserveInventoryOnSwap()) {
+            return;
+        }
+
+        PlayerInventory inventory = player.getInventory();
+        inventory.clear();
+        inventory.setArmorContents(new ItemStack[4]);
+        inventory.setItemInOffHand(new ItemStack(Material.AIR));
+        player.getEnderChest().clear();
+
+        player.setTotalExperience(0);
+        player.setLevel(0);
+        player.setExp(0.0F);
+        player.getActivePotionEffects().forEach(effect ->
+                player.removePotionEffect(effect.getType()));
+        player.setFireTicks(0);
+        player.setFreezeTicks(0);
+        player.setFallDistance(0.0F);
+        player.setNoDamageTicks(0);
     }
 
     /**
@@ -538,5 +653,13 @@ public class HardcoreWorldReset extends JavaPlugin {
      */
     void setSwapping(boolean isSwapping) {
         this.isSwapping = isSwapping;
+    }
+
+    /**
+     * Exposes the environment check to WorldManager without making it part of
+     * the public plugin API.
+     */
+    boolean isTestEnvironmentForWorldManager() {
+        return isTestEnvironment();
     }
 }

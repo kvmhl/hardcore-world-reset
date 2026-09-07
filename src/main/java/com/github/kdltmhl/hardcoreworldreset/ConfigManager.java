@@ -142,7 +142,7 @@ public class ConfigManager {
         preserveInventoryOnSwap = config.getBoolean("gameplay.preserve-inventory-on-swap", false);
         announceDeaths = config.getBoolean("gameplay.announce-deaths", true);
         showTimerInTab = config.getBoolean("gameplay.show-timer-in-tab", true);
-        worldPregenDistance = config.getInt("performance.world-pregen-distance", 0);
+        worldPregenDistance = config.getInt("performance.world-pregen-distance", 8);
         teleportDelay = config.getInt("gameplay.teleport-delay-ticks", 20);
         minPlayersToStart = config.getInt("gameplay.min-players-to-start", 1);
     }
@@ -319,6 +319,15 @@ public class ConfigManager {
     }
 
     /**
+     * Gets the generation identifier of the latest world reset.
+     *
+     * @return reset generation, never negative
+     */
+    public long getResetGeneration() {
+        return Math.max(0L, config.getLong("state.reset-generation", 0L));
+    }
+
+    /**
      * Saves the current plugin state.
      *
      * @param activeWorld  The active world name
@@ -326,9 +335,32 @@ public class ConfigManager {
      * @param worldCounter The world counter
      */
     public void saveState(String activeWorld, String standbyWorld, int worldCounter) {
+        saveState(activeWorld, standbyWorld, worldCounter, getResetGeneration());
+    }
+
+    /**
+     * Saves the current plugin state and reset generation atomically.
+     *
+     * @param activeWorld     the active world name
+     * @param standbyWorld    the standby world name
+     * @param worldCounter    the world counter
+     * @param resetGeneration the current reset generation
+     */
+    public void saveState(String activeWorld, String standbyWorld, int worldCounter, long resetGeneration) {
         config.set("state.active-world", activeWorld);
         config.set("state.standby-world", standbyWorld);
         config.set("state.world-counter", worldCounter);
+        config.set("state.reset-generation", Math.max(0L, resetGeneration));
+        plugin.saveConfig();
+    }
+
+    /**
+     * Saves the reset generation used for join cleanup.
+     *
+     * @param resetGeneration the current reset generation
+     */
+    public void saveResetGeneration(long resetGeneration) {
+        config.set("state.reset-generation", Math.max(0L, resetGeneration));
         plugin.saveConfig();
     }
 

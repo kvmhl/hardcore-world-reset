@@ -39,6 +39,7 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        plugin.cleanupPlayerForCurrentReset(player);
         World activeWorld = plugin.getActiveWorld();
 
         if (activeWorld != null) {

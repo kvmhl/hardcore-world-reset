@@ -85,10 +85,8 @@ class ConfigManagerTest {
             // Given
             configManager.load();
 
-            // Then - default in config.yml is DISCONNECT
-            assertThat(configManager.getSwapMethod()).isIn(
-                    ConfigManager.SwapMethod.SEAMLESS,
-                    ConfigManager.SwapMethod.DISCONNECT);
+            // Then - the default is the pre-warmed seamless swap
+            assertThat(configManager.getSwapMethod()).isEqualTo(ConfigManager.SwapMethod.SEAMLESS);
         }
 
         @Test
